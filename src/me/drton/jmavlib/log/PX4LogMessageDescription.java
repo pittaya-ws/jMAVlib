@@ -101,10 +101,6 @@ public class PX4LogMessageDescription {
         return Arrays.asList(fields);
     }
 
-    public int getFieldIdx(String field) {
-        return fieldsMap.get(field);
-    }
-
     @Override
     public String toString() {
         return String.format("PX4LogMessageDescription: type=%s, length=%s, name=%s, format=%s, fields=%s", type,

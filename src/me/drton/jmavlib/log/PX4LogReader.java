@@ -330,9 +330,6 @@ public class PX4LogReader extends BinaryLogReader {
                     break;
                 }
                 while (true) {
-                    if (buffer.remaining() < HEADER_LEN) {
-                        break;
-                    }
                     if (buffer.remaining() < PX4LogMessageDescription.FORMAT.length) {
                         break;
                     }

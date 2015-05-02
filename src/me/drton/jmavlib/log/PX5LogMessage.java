@@ -5,12 +5,14 @@ import java.util.List;
 /**
  * User: ton Date: 03.06.13 Time: 16:18
  */
-public class PX4LogMessage {
-    public final PX4LogMessageDescription description;
+public class PX5LogMessage {
+    public final PX5LogMessageDescription description;
+    private final int id;
     private final List<Object> data;
 
-    public PX4LogMessage(PX4LogMessageDescription description, List<Object> data) {
+    public PX5LogMessage(PX5LogMessageDescription description, int id, List<Object> data) {
         this.description = description;
+        this.id = id;
         this.data = data;
     }
 
@@ -29,6 +31,6 @@ public class PX4LogMessage {
 
     @Override
     public String toString() {
-        return String.format("PX4LogMessage: type=%s, name=%s, data=%s", description.type, description.name, data);
+        return String.format("PX5LogMessage: type=%s, id=%s, name=%s, data=%s", description.type, id, description.name, data);
     }
 }

@@ -66,6 +66,7 @@ public interface LogReader {
 
     /**
      * Get UTC time reference as Unix time, i.e. UTC time of time 0 in the log.
+     *
      * @return UTC time reference in us
      */
     long getUTCTimeReferenceMicroseconds();

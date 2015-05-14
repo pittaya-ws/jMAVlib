@@ -1,6 +1,6 @@
 package me.drton.jmavlib.conversion;
 
-import org.la4j.matrix.Matrix;
+import org.la4j.Matrix;
 import org.la4j.matrix.dense.Basic2DMatrix;
 
 import static java.lang.Math.cos;

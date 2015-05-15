@@ -47,16 +47,26 @@ public class MAVLinkStream {
             try {
                 return new MAVLinkMessage(schema, buffer);
             } catch (MAVLinkProtocolException e) {
-                // Message is completely corrupted, try to sync on the next byte
-            } catch (MAVLinkUnknownMessage mavLinkUnknownMessage) {
+                // Message is corrupted, try to sync on the next byte
+                if (debug) {
+                    System.err.println(String.format("%s: %s", channel, e));
+                }
+            } catch (MAVLinkUnknownMessage e) {
                 // Message looks ok but with another protocol, skip it
                 if (debug) {
-                    mavLinkUnknownMessage.printStackTrace();
+                    System.err.println(String.format("%s: %s", channel, e));
                 }
-            } catch (BufferUnderflowException bufferUnderflowException) {
+            } catch (BufferUnderflowException e) {
                 // Try to refill buffer
                 buffer.compact();
-                int n = channel.read(buffer);
+                int n = 0;
+                try {
+                    n = channel.read(buffer);
+                } catch (IOException ioe) {
+                    // In case of exception don't forget to flip the buffer
+                    buffer.flip();
+                    throw ioe;
+                }
                 buffer.flip();
                 if (n <= 0) {
                     return null;

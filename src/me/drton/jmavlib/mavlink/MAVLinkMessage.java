@@ -8,8 +8,9 @@ import java.nio.charset.Charset;
  * User: ton Date: 03.06.14 Time: 12:31
  */
 public class MAVLinkMessage {
-    private final static int MSG_ID_OFFSET = 5;
-    public final static int DATA_OFFSET = 6;
+    public final static int HEADER_LENGTH = 6;
+    public final static int CRC_LENGTH = 2;
+    public final static int NON_PAYLOAD_LENGTH = HEADER_LENGTH + CRC_LENGTH;
     private final MAVLinkSchema schema;
     public final MAVLinkMessageDefinition definition;
     public final int msgID;
@@ -68,7 +69,7 @@ public class MAVLinkMessage {
      */
     public MAVLinkMessage(MAVLinkSchema schema, ByteBuffer buffer)
             throws MAVLinkProtocolException, MAVLinkUnknownMessage, BufferUnderflowException {
-        if (buffer.remaining() < 8) {
+        if (buffer.remaining() < NON_PAYLOAD_LENGTH) {
             throw new BufferUnderflowException();
         }
         int startPos = buffer.position();
@@ -78,7 +79,7 @@ public class MAVLinkMessage {
                     String.format("Invalid start sign: %02x, should be %02x", startSign, schema.getStartSign()));
         }
         int payloadLen = buffer.get() & 0xff;
-        if (buffer.remaining() < payloadLen + 6) {
+        if (buffer.remaining() < payloadLen + NON_PAYLOAD_LENGTH - 2) { // 2 bytes was read already
             buffer.position(startPos);
             throw new BufferUnderflowException();
         }
@@ -90,11 +91,11 @@ public class MAVLinkMessage {
         this.definition = schema.getMessageDefinition(msgID);
         if (definition == null) {
             // Unknown message skip it
-            buffer.position(buffer.position() + payloadLen + 2);
+            buffer.position(buffer.position() + payloadLen + CRC_LENGTH);
             throw new MAVLinkUnknownMessage(String.format("Unknown message: %s", msgID));
         }
         if (payloadLen != definition.payloadLength) {
-            buffer.position(buffer.position() + payloadLen + 2);
+            buffer.position(buffer.position() + payloadLen + CRC_LENGTH);
             throw new MAVLinkUnknownMessage(
                     String.format("Invalid payload len for msg %s (%s): %s, should be %s", definition.name, msgID,
                             payloadLen, definition.payloadLength));
@@ -117,7 +118,7 @@ public class MAVLinkMessage {
 
     public ByteBuffer encode(byte sequence) {
         this.sequence = sequence;
-        ByteBuffer buf = ByteBuffer.allocate(payload.length + 8);
+        ByteBuffer buf = ByteBuffer.allocate(payload.length + NON_PAYLOAD_LENGTH);
         buf.order(schema.getByteOrder());
         buf.put(schema.getStartSign());
         buf.put((byte) definition.payloadLength);
@@ -144,7 +145,7 @@ public class MAVLinkMessage {
     private int calculateCRC(ByteBuffer buf) {
         buf.get();  // Skip start sign
         int c = 0xFFFF;
-        for (int i = 0; i < definition.payloadLength + 5; i++) {
+        for (int i = 0; i < definition.payloadLength + HEADER_LENGTH - 1; i++) {
             c = MAVLinkCRC.accumulateCRC(buf.get(), c);
         }
         c = MAVLinkCRC.accumulateCRC(definition.extraCRC, c);
@@ -161,23 +162,23 @@ public class MAVLinkMessage {
 
     public Object get(MAVLinkField field) {
         if (field.arraySize > 1) {
-            Object[] res = new Object[field.arraySize];
-            int offs = field.offset;
-            for (int i = 0; i < field.arraySize; i++) {
-                res[i] = getValue(field.type, offs);
-                offs += field.type.size;
-            }
             if (field.type == MAVLinkDataType.CHAR) {
-                StringBuilder sb = new StringBuilder();
-                for (int i = 0; i < res.length; i++) {
-                    byte c = (Byte) res[i];
-                    if (c == 0) {
-                        break;
-                    }
-                    sb.append((char) c);
+                // Char array (string)
+                byte[] buf = new byte[field.arraySize];
+                payloadBB.get(buf);
+                // Find NULL terminating char
+                int n = 0;
+                while (n < buf.length && buf[n] != 0) {
+                    n++;
                 }
-                return sb.toString();
+                return new String(buf, 0, n, charset);
             } else {
+                Object[] res = new Object[field.arraySize];
+                int offs = field.offset;
+                for (int i = 0; i < field.arraySize; i++) {
+                    res[i] = getValue(field.type, offs);
+                    offs += field.type.size;
+                }
                 return res;
             }
         } else {

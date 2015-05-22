@@ -86,7 +86,7 @@ public class PX5LogMessageDescription {
             v = buffer.getFloat();
         } else if (type.equals("double")) {
             v = buffer.getDouble();
-        } else if (type.equals("int8_t")) {
+        } else if (type.equals("int8_t") || type.equals("bool")) {
             v = (int) buffer.get();
         } else if (type.equals("uint8_t")) {
             v = buffer.get() & 0xFF;

@@ -116,7 +116,7 @@ public class PX5LogMessageDescription {
     public PX5LogMessage parseMessage(ByteBuffer buffer) {
         buffer.get();   // Magic num, don't check
         buffer.get();   // Msg type, don't check
-        int id_raw = buffer.get();  // Msg ID
+        int multi_id_raw = buffer.get();  // Msg Multi-ID
         List<Object> data = new ArrayList<Object>(fields.length);
         for (FieldDescription field : fields) {
             Object obj;
@@ -131,13 +131,13 @@ public class PX5LogMessageDescription {
             }
             data.add(obj);
         }
-        int id = 0;
+        int multi_id = 0;
         boolean is_active = true;
         if (is_multi) {
-            id = (id_raw & 0x7F);
-            is_active = (id_raw & 0x80) != 0;
+            multi_id = (multi_id_raw & 0x7F);
+            is_active = (multi_id_raw & 0x80) != 0;
         }
-        return new PX5LogMessage(this, id, is_active, data);
+        return new PX5LogMessage(this, multi_id, is_active, data);
     }
 
     public List<String> getFields() {

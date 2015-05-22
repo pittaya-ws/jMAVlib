@@ -166,17 +166,27 @@ public class PX5LogReader extends BinaryLogReader {
     }
 
     private void applyMsg(Map<String, Object> update, PX5LogMessage msg) {
+        if (msg.description.is_multi) {
+            applyMsgAsName(update, msg, msg.description.name + "[" + msg.get_id() + "]");
+        }
+        if (msg.is_active()) {
+            applyMsgAsName(update, msg, msg.description.name);
+        }
+    }
+
+    void applyMsgAsName(Map<String, Object> update, PX5LogMessage msg, String msg_name) {
         PX5LogMessageDescription.FieldDescription[] fields = msg.description.fields;
         for (int i = 0; i < fields.length; i++) {
             PX5LogMessageDescription.FieldDescription field = fields[i];
             if (field.size >= 0) {
                 for (int j = 0; j < field.size; j++) {
-                    update.put(msg.description.name + "." + field.name + "[" + j + "]", ((Object[])msg.get(i))[j]);
+                    update.put(msg_name + "." + field.name + "[" + j + "]", ((Object[])msg.get(i))[j]);
                 }
             } else {
-                update.put(msg.description.name + "." + field.name, msg.get(i));
+                update.put(msg_name + "." + field.name, msg.get(i));
             }
         }
+
     }
 
     @Override

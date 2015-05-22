@@ -7,12 +7,14 @@ import java.util.List;
  */
 public class PX5LogMessage {
     public final PX5LogMessageDescription description;
-    private final int id;
+    private final int topic_id;
+    private final boolean is_active;
     private final List<Object> data;
 
-    public PX5LogMessage(PX5LogMessageDescription description, int id, List<Object> data) {
+    public PX5LogMessage(PX5LogMessageDescription description, int topic_id, boolean is_active, List<Object> data) {
         this.description = description;
-        this.id = id;
+        this.topic_id = topic_id;
+        this.is_active = is_active;
         this.data = data;
     }
 
@@ -29,8 +31,16 @@ public class PX5LogMessage {
         return idx == null ? null : data.get(idx);
     }
 
+    public int get_id() {
+        return topic_id;
+    }
+
+    public boolean is_active() {
+        return is_active;
+    }
+
     @Override
     public String toString() {
-        return String.format("PX5LogMessage: type=%s, id=%s, name=%s, data=%s", description.type, id, description.name, data);
+        return String.format("PX5LogMessage: type=%s, id=%s, name=%s, data=%s", description.type, topic_id, description.name, data);
     }
 }

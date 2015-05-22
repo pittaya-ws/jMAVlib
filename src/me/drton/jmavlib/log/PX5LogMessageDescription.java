@@ -8,7 +8,7 @@ import java.util.*;
  * User: ton Date: 03.06.13 Time: 14:35
  */
 public class PX5LogMessageDescription {
-    static PX5LogMessageDescription FORMAT = new PX5LogMessageDescription(0x00, 89, "_FORMAT", new FieldDescription[]{});
+    static PX5LogMessageDescription FORMAT = new PX5LogMessageDescription(0x00, 89, false, "_FORMAT", new FieldDescription[]{});
 
     static class FieldDescription {
         public final String name;
@@ -44,6 +44,7 @@ public class PX5LogMessageDescription {
 
     public final int type;
     public final int fullLength;
+    public final boolean is_multi;
     public final String name;
     public final FieldDescription[] fields;
     public final Map<String, Integer> fieldsMap = new HashMap<String, Integer>();
@@ -55,9 +56,10 @@ public class PX5LogMessageDescription {
         return p.length > 0 ? p[0] : "";
     }
 
-    public PX5LogMessageDescription(int type, int bodyLength, String name, FieldDescription[] fields) {
+    public PX5LogMessageDescription(int type, int bodyLength, boolean is_multi, String name, FieldDescription[] fields) {
         this.type = type;
         this.fullLength = bodyLength + PX5LogReader.HEADER_LEN;
+        this.is_multi = is_multi;
         this.name = name;
         this.fields = fields;
     }
@@ -69,6 +71,7 @@ public class PX5LogMessageDescription {
         type = buffer.get() & 0xFF;
         fullLength = (buffer.get() & 0xFF) + PX5LogReader.HEADER_LEN;
         int format_len = buffer.get() & 0xFF;
+        is_multi = (buffer.get() != 0);
         String[] descr_str = getString(buffer, format_len).split(":");
         name = descr_str[0];
         String[] fields_descrs_str = descr_str[1].split(";");
@@ -113,7 +116,7 @@ public class PX5LogMessageDescription {
     public PX5LogMessage parseMessage(ByteBuffer buffer) {
         buffer.get();   // Magic num, don't check
         buffer.get();   // Msg type, don't check
-        int id = buffer.get();  // Msg ID
+        int id_raw = buffer.get();  // Msg ID
         List<Object> data = new ArrayList<Object>(fields.length);
         for (FieldDescription field : fields) {
             Object obj;
@@ -128,7 +131,13 @@ public class PX5LogMessageDescription {
             }
             data.add(obj);
         }
-        return new PX5LogMessage(this, id, data);
+        int id = 0;
+        boolean is_active = true;
+        if (is_multi) {
+            id = (id_raw & 0x7F);
+            is_active = (id_raw & 0x80) != 0;
+        }
+        return new PX5LogMessage(this, id, is_active, data);
     }
 
     public List<String> getFields() {

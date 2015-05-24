@@ -165,6 +165,7 @@ public class MAVLinkMessage {
             if (field.type == MAVLinkDataType.CHAR) {
                 // Char array (string)
                 byte[] buf = new byte[field.arraySize];
+                payloadBB.position(field.offset);
                 payloadBB.get(buf);
                 // Find NULL terminating char
                 int n = 0;

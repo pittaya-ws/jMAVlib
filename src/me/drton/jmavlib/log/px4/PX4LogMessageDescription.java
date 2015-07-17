@@ -1,4 +1,4 @@
-package me.drton.jmavlib.log;
+package me.drton.jmavlib.log.px4;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;

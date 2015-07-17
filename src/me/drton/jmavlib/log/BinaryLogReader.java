@@ -37,6 +37,17 @@ public abstract class BinaryLogReader implements LogReader {
         return n;
     }
 
+    public void fillBuffer(int required) throws IOException {
+        if (buffer.remaining() < required) {
+            buffer.compact();
+            channel.read(buffer);
+            buffer.flip();
+            if (buffer.remaining() < required) {
+                throw new EOFException();
+            }
+        }
+    }
+
     protected long position() throws IOException {
         return channel.position() - buffer.remaining();
     }

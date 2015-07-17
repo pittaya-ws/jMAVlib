@@ -1,4 +1,7 @@
-package me.drton.jmavlib.log;
+package me.drton.jmavlib.log.px4;
+
+import me.drton.jmavlib.log.BinaryLogReader;
+import me.drton.jmavlib.log.FormatErrorException;
 
 import java.io.EOFException;
 import java.io.IOException;

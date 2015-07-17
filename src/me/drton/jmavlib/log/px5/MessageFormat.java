@@ -1,4 +1,4 @@
-package me.drton.jmavlib.log;
+package me.drton.jmavlib.log.px5;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
@@ -7,16 +7,14 @@ import java.util.*;
 /**
  * User: ton Date: 03.06.13 Time: 14:35
  */
-public class PX5LogMessageDescription {
-    static PX5LogMessageDescription FORMAT = new PX5LogMessageDescription(0x00, 89, false, "_FORMAT", new FieldDescription[]{});
-
-    static class FieldDescription {
+public class MessageFormat {
+    static class FieldFormat {
         public final String name;
         public final String type;
         public final int size;
 
-        public FieldDescription(String descr_str) {
-            String[] p = descr_str.split(" ");
+        public FieldFormat(String formatStr) {
+            String[] p = formatStr.split(" ");
             name = p[1];
             if (p[0].contains("[")) {
                 // Array
@@ -42,11 +40,10 @@ public class PX5LogMessageDescription {
 
     private static Charset charset = Charset.forName("latin1");
 
-    public final int type;
-    public final int fullLength;
-    public final boolean is_multi;
+    public final int msgID;
+    public final int size;
     public final String name;
-    public final FieldDescription[] fields;
+    public final FieldFormat[] fields;
     public final Map<String, Integer> fieldsMap = new HashMap<String, Integer>();
 
     private static String getString(ByteBuffer buffer, int len) {
@@ -56,30 +53,22 @@ public class PX5LogMessageDescription {
         return p.length > 0 ? p[0] : "";
     }
 
-    public PX5LogMessageDescription(int type, int bodyLength, boolean is_multi, String name, FieldDescription[] fields) {
-        this.type = type;
-        this.fullLength = bodyLength + PX5LogReader.HEADER_LEN;
-        this.is_multi = is_multi;
-        this.name = name;
-        this.fields = fields;
-    }
-
-    public PX5LogMessageDescription(ByteBuffer buffer) {
-        buffer.get();   // Magic num
-        buffer.get();   // Msg type
-        buffer.get();   // Msg ID
-        type = buffer.get() & 0xFF;
-        fullLength = (buffer.get() & 0xFF) + PX5LogReader.HEADER_LEN;
+    public MessageFormat(ByteBuffer buffer) {
+        msgID = buffer.get() & 0xFF;
+        size = buffer.get() & 0xFF;
         int format_len = buffer.get() & 0xFF;
-        is_multi = (buffer.get() != 0);
         String[] descr_str = getString(buffer, format_len).split(":");
         name = descr_str[0];
-        String[] fields_descrs_str = descr_str[1].split(";");
-        fields = new FieldDescription[fields_descrs_str.length];
-        for (int i = 0; i < fields_descrs_str.length; i++) {
-            String field_format_str = fields_descrs_str[i];
-            fields[i] = new FieldDescription(field_format_str);
-            fieldsMap.put(fields[i].name, i);
+        if (descr_str.length > 1) {
+            String[] fields_descrs_str = descr_str[1].split(";");
+            fields = new FieldFormat[fields_descrs_str.length];
+            for (int i = 0; i < fields_descrs_str.length; i++) {
+                String field_format_str = fields_descrs_str[i];
+                fields[i] = new FieldFormat(field_format_str);
+                fieldsMap.put(fields[i].name, i);
+            }
+        } else {
+            fields = new FieldFormat[0];
         }
     }
 
@@ -113,12 +102,9 @@ public class PX5LogMessageDescription {
         return v;
     }
 
-    public PX5LogMessage parseMessage(ByteBuffer buffer) {
-        buffer.get();   // Magic num, don't check
-        buffer.get();   // Msg type, don't check
-        int multi_id_raw = buffer.get();  // Msg Multi-ID
+    public List<Object> parseBody(ByteBuffer buffer) {
         List<Object> data = new ArrayList<Object>(fields.length);
-        for (FieldDescription field : fields) {
+        for (FieldFormat field : fields) {
             Object obj;
             if (field.size >= 0) {
                 Object[] arr = new Object[field.size];
@@ -131,18 +117,12 @@ public class PX5LogMessageDescription {
             }
             data.add(obj);
         }
-        int multi_id = 0;
-        boolean is_active = true;
-        if (is_multi) {
-            multi_id = (multi_id_raw & 0x7F);
-            is_active = (multi_id_raw & 0x80) != 0;
-        }
-        return new PX5LogMessage(this, multi_id, is_active, data);
+        return data;
     }
 
     public List<String> getFields() {
         List<String> field_names = new ArrayList<String>(fields.length);
-        for (FieldDescription field : fields) {
+        for (FieldFormat field : fields) {
             field_names.add(field.name);
         }
         return field_names;
@@ -150,7 +130,7 @@ public class PX5LogMessageDescription {
 
     @Override
     public String toString() {
-        return String.format("PX5LogMessageDescription: type=%s, fullLength=%s, name=%s, fields=%s", type,
-                fullLength, name, Arrays.asList(fields));
+        return String.format("FORMAT: type=%s, size=%s, name=%s, fields=%s",
+                msgID, size, name, Arrays.asList(fields));
     }
 }

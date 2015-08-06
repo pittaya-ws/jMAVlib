@@ -107,10 +107,26 @@ public class PX4LogReader extends BinaryLogReader {
         long timeEnd = -1;
         boolean parseVersion = true;
         StringBuilder versionStr = new StringBuilder();
+        PX4LogMessage lastMsg = null;
+        PX4LogMessage lastLastMsg = null;
+        long time = 0;
         while (true) {
             PX4LogMessage msg;
             try {
                 msg = readMessage();
+                if (null == msg) {
+                    if (null != lastMsg) {
+                        System.out.println(String.format("Message before null: %s %d", lastMsg.description.name, time - timeStart));
+                    }
+                    if (null != lastLastMsg) {
+                        System.out.println(String.format("Message before that: %s %d", lastLastMsg.description.name, time - timeStart));
+                    }
+                    continue;
+                }
+                else {
+                    lastLastMsg = lastMsg;
+                    lastMsg = msg;
+                }
             } catch (EOFException e) {
                 break;
             }
@@ -118,6 +134,7 @@ public class PX4LogReader extends BinaryLogReader {
             if (formatPX4) {
                 if ("TIME".equals(msg.description.name)) {
                     long t = msg.getLong(0);
+                    time = t;
                     if (timeStart < 0) {
                         timeStart = t;
                     }
@@ -213,8 +230,9 @@ public class PX4LogReader extends BinaryLogReader {
                 int msgType = readHeaderFillBuffer();
                 PX4LogMessageDescription messageDescription = messageDescriptions.get(msgType);
                 if (messageDescription == null) {
-                    buffer.reset();
-                    throw new RuntimeException("Unknown message type: " + msgType);
+                    //buffer.reset();
+                    //throw new RuntimeException("Unknown message type: " + msgType);
+                    continue;
                 }
                 int bodyLen = messageDescription.length - HEADER_LEN;
                 if (buffer.remaining() < bodyLen) {
@@ -285,6 +303,9 @@ public class PX4LogReader extends BinaryLogReader {
         }
         while (true) {
             PX4LogMessage msg = readMessage();
+            if (null == msg){
+                continue;
+            }
 
             if (formatPX4) {
                 // PX4 log has TIME message
@@ -342,6 +363,7 @@ public class PX4LogReader extends BinaryLogReader {
                         // Message description
                         PX4LogMessageDescription msgDescr = new PX4LogMessageDescription(buffer);
                         messageDescriptions.put(msgDescr.type, msgDescr);
+                        System.out.println(String.format("msg: %s, %d, %s", msgDescr.name, msgDescr.type, msgDescr.format));
                         if ("TIME".equals(msgDescr.name)) {
                             formatPX4 = true;
                         }
@@ -379,9 +401,9 @@ public class PX4LogReader extends BinaryLogReader {
         }
     }
 
-    private int readHeader() throws IOException, FormatErrorException {
+    private int readHeader() throws IOException {
         if (buffer.get() != HEADER_HEAD1 || buffer.get() != HEADER_HEAD2) {
-            throw new FormatErrorException(String.format("Invalid header at %s (0x%X)", position(), position()));
+            return -1;
         }
         return buffer.get() & 0xFF;
     }
@@ -395,10 +417,11 @@ public class PX4LogReader extends BinaryLogReader {
                 continue;
             }
             int p = buffer.position();
-            try {
-                return readHeader();
-            } catch (FormatErrorException e) {
+            int header = readHeader();
+            if (header < 0) {
                 buffer.position(p + 1);
+            }else{
+                return header;
             }
         }
     }
@@ -414,7 +437,8 @@ public class PX4LogReader extends BinaryLogReader {
         int msgType = readHeaderFillBuffer();
         PX4LogMessageDescription messageDescription = messageDescriptions.get(msgType);
         if (messageDescription == null) {
-            throw new FormatErrorException("Unknown message type: " + msgType);
+            System.out.println("Unknown message type: " + msgType);
+            return null;
         }
         if (buffer.remaining() < messageDescription.length - HEADER_LEN) {
             fillBuffer();

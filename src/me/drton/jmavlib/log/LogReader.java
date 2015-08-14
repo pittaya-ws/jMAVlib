@@ -84,4 +84,11 @@ public interface LogReader {
      * @return parameters map or null if not supported
      */
     Map<String, Object> getParameters();
+
+    /**
+     * Get info if errors occured during log processing.
+     *
+     * @return null if there are no format issues otherwise a String describing the problems.
+     */
+    String getErrors();
 }

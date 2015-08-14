@@ -6,10 +6,7 @@ import me.drton.jmavlib.log.FormatErrorException;
 import java.io.EOFException;
 import java.io.IOException;
 import java.nio.BufferUnderflowException;
-import java.util.HashMap;
-import java.util.HashSet;
-import java.util.Map;
-import java.util.Set;
+import java.util.*;
 
 /**
  * User: ton Date: 03.06.13 Time: 14:18
@@ -32,6 +29,8 @@ public class PX4LogReader extends BinaryLogReader {
     private long utcTimeReference = -1;
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
+    private List<String> processingErrors = new ArrayList<String>();
+
     private static Set<String> hideMsgs = new HashSet<String>();
     private static Map<String, String> formatNames = new HashMap<String, String>();
 
@@ -116,10 +115,10 @@ public class PX4LogReader extends BinaryLogReader {
                 msg = readMessage();
                 if (null == msg) {
                     if (null != lastMsg) {
-                        System.out.println(String.format("Message before null: %s %d", lastMsg.description.name, time - timeStart));
+                        processingErrors.add(String.format("Message before null: %s %d", lastMsg.description.name, time - timeStart));
                     }
                     if (null != lastLastMsg) {
-                        System.out.println(String.format("Message before that: %s %d", lastLastMsg.description.name, time - timeStart));
+                        processingErrors.add(String.format("Message before that: %s %d", lastLastMsg.description.name, time - timeStart));
                     }
                     continue;
                 }
@@ -437,7 +436,7 @@ public class PX4LogReader extends BinaryLogReader {
         int msgType = readHeaderFillBuffer();
         PX4LogMessageDescription messageDescription = messageDescriptions.get(msgType);
         if (messageDescription == null) {
-            System.out.println("Unknown message type: " + msgType);
+            processingErrors.add("Unknown message type: " + msgType);
             return null;
         }
         if (buffer.remaining() < messageDescription.length - HEADER_LEN) {
@@ -462,5 +461,17 @@ public class PX4LogReader extends BinaryLogReader {
         long tEnd = System.currentTimeMillis();
         System.out.println(tEnd - tStart);
         reader.close();
+    }
+
+    @Override
+    public String getErrors() {
+        StringBuffer buf = new StringBuffer();
+        for (String error : processingErrors) {
+            buf.append(error).append("\n");
+        }
+        if (buf.length() > 0) {
+            return buf.toString();
+        }
+        return null;
     }
 }

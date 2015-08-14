@@ -255,4 +255,9 @@ public class MAVLinkLogReader implements LogReader {
         System.out.println(tEnd - tStart);
         reader.close();
     }
+
+    @Override
+    public String getErrors() {
+        return null;
+    }
 }

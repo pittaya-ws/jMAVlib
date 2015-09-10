@@ -1,4 +1,4 @@
-package me.drton.jmavlib.log.px5;
+package me.drton.jmavlib.log.ulog;
 
 import me.drton.jmavlib.log.BinaryLogReader;
 import me.drton.jmavlib.log.FormatErrorException;
@@ -12,7 +12,7 @@ import java.util.Map;
 /**
  * User: ton Date: 03.06.13 Time: 14:18
  */
-public class PX5LogReader extends BinaryLogReader {
+public class ULogReader extends BinaryLogReader {
     static final byte MESSAGE_TYPE_FORMAT = (byte) 'F';
     static final byte MESSAGE_TYPE_TIME = (byte) 'T';
     static final byte MESSAGE_TYPE_DATA = (byte) 'D';
@@ -31,7 +31,7 @@ public class PX5LogReader extends BinaryLogReader {
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
 
-    public PX5LogReader(String fileName) throws IOException, FormatErrorException {
+    public ULogReader(String fileName) throws IOException, FormatErrorException {
         super(fileName);
         readFormats();
         updateStatistics();
@@ -39,7 +39,7 @@ public class PX5LogReader extends BinaryLogReader {
 
     @Override
     public String getFormat() {
-        return "PX5";
+        return "ULog";
     }
 
     @Override
@@ -322,7 +322,7 @@ public class PX5LogReader extends BinaryLogReader {
     }
 
     public static void main(String[] args) throws Exception {
-        PX5LogReader reader = new PX5LogReader("test.p5l");
+        ULogReader reader = new ULogReader("test.p5l");
         long tStart = System.currentTimeMillis();
         while (true) {
 //            try {

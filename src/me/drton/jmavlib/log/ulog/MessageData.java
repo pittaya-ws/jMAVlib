@@ -1,4 +1,4 @@
-package me.drton.jmavlib.log.px5;
+package me.drton.jmavlib.log.ulog;
 
 import java.nio.ByteBuffer;
 import java.util.List;

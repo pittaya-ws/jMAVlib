@@ -342,4 +342,9 @@ public class ULogReader extends BinaryLogReader {
         System.out.println(tEnd - tStart);
         reader.close();
     }
+
+    @Override
+    public boolean hasErrors() {
+        return false;
+    }
 }

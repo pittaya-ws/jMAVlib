@@ -29,7 +29,7 @@ public class PX4LogReader extends BinaryLogReader {
     private long utcTimeReference = -1;
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
-    private List<String> processingErrors = new ArrayList<String>();
+    private boolean errorsDuringProcessing = false;
 
     private static Set<String> hideMsgs = new HashSet<String>();
     private static Map<String, String> formatNames = new HashMap<String, String>();
@@ -115,10 +115,10 @@ public class PX4LogReader extends BinaryLogReader {
                 msg = readMessage();
                 if (null == msg) {
                     if (null != lastMsg) {
-                        processingErrors.add(String.format("Message before null: %s %d", lastMsg.description.name, time - timeStart));
+                        System.out.println(String.format("Message before null: %s %d", lastMsg.description.name, time - timeStart));
                     }
                     if (null != lastLastMsg) {
-                        processingErrors.add(String.format("Message before that: %s %d", lastLastMsg.description.name, time - timeStart));
+                        System.out.println(String.format("Message before that: %s %d", lastLastMsg.description.name, time - timeStart));
                     }
                     continue;
                 }
@@ -362,7 +362,7 @@ public class PX4LogReader extends BinaryLogReader {
                         // Message description
                         PX4LogMessageDescription msgDescr = new PX4LogMessageDescription(buffer);
                         messageDescriptions.put(msgDescr.type, msgDescr);
-                        System.out.println(String.format("msg: %s, %d, %s", msgDescr.name, msgDescr.type, msgDescr.format));
+                        //System.out.println(String.format("msg: %s, %d, %s", msgDescr.name, msgDescr.type, msgDescr.format));
                         if ("TIME".equals(msgDescr.name)) {
                             formatPX4 = true;
                         }
@@ -436,7 +436,8 @@ public class PX4LogReader extends BinaryLogReader {
         int msgType = readHeaderFillBuffer();
         PX4LogMessageDescription messageDescription = messageDescriptions.get(msgType);
         if (messageDescription == null) {
-            processingErrors.add("Unknown message type: " + msgType);
+            System.out.println("Unknown message type: " + msgType);
+            errorsDuringProcessing = true;
             return null;
         }
         if (buffer.remaining() < messageDescription.length - HEADER_LEN) {
@@ -464,14 +465,7 @@ public class PX4LogReader extends BinaryLogReader {
     }
 
     @Override
-    public String getErrors() {
-        StringBuffer buf = new StringBuffer();
-        for (String error : processingErrors) {
-            buf.append(error).append("\n");
-        }
-        if (buf.length() > 0) {
-            return buf.toString();
-        }
-        return null;
+    public boolean hasErrors() {
+        return errorsDuringProcessing;
     }
 }

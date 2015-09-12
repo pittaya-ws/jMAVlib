@@ -182,7 +182,7 @@ public class CSVLogReader implements LogReader {
     }
 
     @Override
-    public String getErrors() {
-        return null;
+    public boolean hasErrors() {
+        return false;
     }
 }

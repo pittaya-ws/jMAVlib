@@ -86,9 +86,9 @@ public interface LogReader {
     Map<String, Object> getParameters();
 
     /**
-     * Get info if errors occured during log processing.
+     * Return true if errors occurred during processing.
      *
-     * @return null if there are no format issues otherwise a String describing the problems.
+     * @return true if errors occurred, false otherwise.
      */
-    String getErrors();
+    boolean hasErrors();
 }

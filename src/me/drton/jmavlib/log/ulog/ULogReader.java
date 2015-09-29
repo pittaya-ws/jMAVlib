@@ -143,7 +143,7 @@ public class ULogReader extends BinaryLogReader {
                     int msgID = buffer.get() & 0xFF;
                     buffer.get();   // MultiID
                     long timestamp = buffer.getLong();
-                    if (timestamp > seekTime) {
+                    if (timestamp >= seekTime) {
                         // Time found
                         buffer.reset();
                         return true;

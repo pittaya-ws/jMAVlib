@@ -33,6 +33,10 @@ public class MessageFormat {
 
         }
 
+        boolean isArray() {
+            return size >= 0 && !"char".equals(type);
+        }
+
         public String toString() {
             return String.format("%s %s", getFullTypeString(), name);
         }
@@ -95,7 +99,7 @@ public class MessageFormat {
         } else if (type.equals("uint64_t")) {
             v = buffer.getLong();
         } else if (type.equals("char")) {
-            v = (char) buffer.get();
+            v = buffer.get();
         } else {
             throw new RuntimeException("Unsupported type: " + type);
         }
@@ -107,11 +111,18 @@ public class MessageFormat {
         for (FieldFormat field : fields) {
             Object obj;
             if (field.size >= 0) {
-                Object[] arr = new Object[field.size];
-                for (int i = 0; i < field.size; i++) {
-                    arr[i] = getValue(buffer, field.type);
+                if (field.type.equals("char")) {
+                    byte[] stringBytes = new byte[field.size];
+                    buffer.get(stringBytes);
+                    String s = new String(stringBytes);
+                    obj = s.substring(0, s.indexOf('\0'));
+                } else {
+                    Object[] arr = new Object[field.size];
+                    for (int i = 0; i < field.size; i++) {
+                        arr[i] = getValue(buffer, field.type);
+                    }
+                    obj = arr;
                 }
-                obj = arr;
             } else {
                 obj = getValue(buffer, field.type);
             }

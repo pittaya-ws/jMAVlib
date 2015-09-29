@@ -42,15 +42,14 @@ public class MessageFormat {
         }
     }
 
-    private static Charset charset = Charset.forName("latin1");
+    public static Charset charset = Charset.forName("latin1");
 
     public final int msgID;
-    public final int size;
     public final String name;
     public final FieldFormat[] fields;
     public final Map<String, Integer> fieldsMap = new HashMap<String, Integer>();
 
-    private static String getString(ByteBuffer buffer, int len) {
+    public static String getString(ByteBuffer buffer, int len) {
         byte[] strBuf = new byte[len];
         buffer.get(strBuf);
         String[] p = new String(strBuf, charset).split("\0");
@@ -59,7 +58,6 @@ public class MessageFormat {
 
     public MessageFormat(ByteBuffer buffer) {
         msgID = buffer.get() & 0xFF;
-        size = buffer.get() & 0xFF;
         int format_len = buffer.get() & 0xFF;
         String[] descr_str = getString(buffer, format_len).split(":");
         name = descr_str[0];
@@ -141,7 +139,7 @@ public class MessageFormat {
 
     @Override
     public String toString() {
-        return String.format("FORMAT: type=%s, size=%s, name=%s, fields=%s",
-                msgID, size, name, Arrays.asList(fields));
+        return String.format("FORMAT: type=%s, name=%s, fields=%s",
+                msgID, name, Arrays.asList(fields));
     }
 }

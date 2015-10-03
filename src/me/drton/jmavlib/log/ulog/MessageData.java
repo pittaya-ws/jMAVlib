@@ -33,6 +33,6 @@ public class MessageData {
 
     @Override
     public String toString() {
-        return String.format("DATA: msg_id=%s, multi_id=%s, name=%s, data=%s", format.msgID, multiID, format.name, data);
+        return String.format("DATA: t=%s msg_id=%s, multi_id=%s, name=%s, data=%s", timestamp, format.msgID, multiID, format.name, data);
     }
 }

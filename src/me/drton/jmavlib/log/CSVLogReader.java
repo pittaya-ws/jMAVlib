@@ -133,6 +133,11 @@ public class CSVLogReader implements LogReader {
     }
 
     @Override
+    public String getSystemName() {
+        return "";
+    }
+
+    @Override
     public long getSizeUpdates() {
         return sizeUpdates;
     }

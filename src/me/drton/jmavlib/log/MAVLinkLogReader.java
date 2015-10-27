@@ -208,6 +208,11 @@ public class MAVLinkLogReader implements LogReader {
     }
 
     @Override
+    public String getSystemName() {
+        return "MAVLink";
+    }
+
+    @Override
     public long getSizeUpdates() {
         return sizeUpdates;
     }

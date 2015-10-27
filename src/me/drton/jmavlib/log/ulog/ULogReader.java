@@ -17,6 +17,7 @@ public class ULogReader extends BinaryLogReader {
     static final byte MESSAGE_TYPE_INFO = (byte) 'I';
     static final byte MESSAGE_TYPE_PARAMETER = (byte) 'P';
 
+    private String systemName = "";
     private long dataStart = 0;
     private Map<Integer, MessageFormat> messageFormats
             = new HashMap<Integer, MessageFormat>();
@@ -36,6 +37,10 @@ public class ULogReader extends BinaryLogReader {
     @Override
     public String getFormat() {
         return "ULog";
+    }
+
+    public String getSystemName() {
+        return systemName;
     }
 
     @Override
@@ -88,7 +93,7 @@ public class ULogReader extends BinaryLogReader {
                 messageFormats.put(msgFormat.msgID, msgFormat);
                 if (msgFormat.name.charAt(0) != '_') {
                     for (int i = 0; i < msgFormat.fields.length; i++) {
-                        MessageFormat.FieldFormat fieldDescr = msgFormat.fields[i];
+                        FieldFormat fieldDescr = msgFormat.fields[i];
                         if (fieldDescr.isArray()) {
                             for (int j = 0; j < fieldDescr.size; j++) {
                                 fieldsList.put(msgFormat.name + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
@@ -101,16 +106,18 @@ public class ULogReader extends BinaryLogReader {
 
             } else if (msg instanceof MessageParameter) {
                 MessageParameter msgParam = (MessageParameter) msg;
-                parameters.put(msgParam.key, msgParam.value);
+                parameters.put(msgParam.getKey(), msgParam.value);
 
             } else if (msg instanceof MessageInfo) {
                 MessageInfo msgInfo = (MessageInfo) msg;
-                if ("VER_HW".equals(msgInfo.key)) {
+                if ("sys_name".equals(msgInfo.getKey())) {
+                    systemName = (String) msgInfo.value;
+                } else if ("ver_hw".equals(msgInfo.getKey())) {
                     version.put("HW", msgInfo.value);
-                } else if ("VER_FW".equals(msgInfo.key)) {
+                } else if ("ver_sw".equals(msgInfo.getKey())) {
                     version.put("FW", msgInfo.value);
-                } else if ("TIME_REF_UTC".equals(msgInfo.key)) {
-                    utcTimeReference = ((Number)msgInfo.value).longValue();
+                } else if ("time_ref_utc".equals(msgInfo.getKey())) {
+                    utcTimeReference = ((Number) msgInfo.value).longValue();
                 }
 
             } else if (msg instanceof MessageData) {
@@ -177,9 +184,9 @@ public class ULogReader extends BinaryLogReader {
     }
 
     void applyMsgAsName(Map<String, Object> update, MessageData msg, String msg_name) {
-        MessageFormat.FieldFormat[] fields = msg.format.fields;
+        FieldFormat[] fields = msg.format.fields;
         for (int i = 0; i < fields.length; i++) {
-            MessageFormat.FieldFormat field = fields[i];
+            FieldFormat field = fields[i];
             if (field.isArray()) {
                 for (int j = 0; j < field.size; j++) {
                     update.put(msg_name + "." + field.name + "[" + j + "]", ((Object[]) msg.get(i))[j]);

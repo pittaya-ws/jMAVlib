@@ -223,10 +223,11 @@ public class ULogReader extends BinaryLogReader {
     public Object readMessage() throws IOException, FormatErrorException {
         while (true) {
             fillBuffer(2);
-            long pos = buffer.position();
+            long pos = position();
             int msgType = buffer.get() & 0xFF;
             int msgSize = buffer.get() & 0xFF;
             fillBuffer(msgSize);
+            Object msg;
             if (msgType == MESSAGE_TYPE_DATA) {
                 int msgID = buffer.get() & 0xFF;
                 MessageFormat msgFormat = messageFormats.get(msgID);
@@ -234,17 +235,23 @@ public class ULogReader extends BinaryLogReader {
                     position(pos);
                     throw new FormatErrorException("Unknown DATA message ID: " + msgID + " at " + pos);
                 }
-                return new MessageData(msgFormat, buffer);
+                msg = new MessageData(msgFormat, buffer);
             } else if (msgType == MESSAGE_TYPE_INFO) {
-                return new MessageInfo(buffer);
+                msg = new MessageInfo(buffer);
             } else if (msgType == MESSAGE_TYPE_PARAMETER) {
-                return new MessageParameter(buffer);
+                msg = new MessageParameter(buffer);
             } else if (msgType == MESSAGE_TYPE_FORMAT) {
-                return new MessageFormat(buffer);
+                msg = new MessageFormat(buffer);
             } else {
                 buffer.position(buffer.position() + msgSize);
                 System.err.println("Unknown message type: " + msgType + " at " + pos);
+                continue;
             }
+            int size_parsed = (int)(position() - pos - 2);
+            if (size_parsed != msgSize) {
+                throw new FormatErrorException("Message size mismatch, parsed: " + size_parsed + ", msg size: " + msgSize + " at " + pos);
+            }
+            return msg;
         }
     }
 

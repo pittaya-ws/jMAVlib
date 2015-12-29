@@ -242,6 +242,15 @@ public class MAVLinkLogReader implements LogReader {
         return parameters;
     }
 
+    @Override
+    public List<Exception> getErrors() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void clearErrors() {
+    }
+
     public static void main(String[] args) throws Exception {
         MAVLinkLogReader reader = new MAVLinkLogReader("test.mavlink", new MAVLinkSchema("common.xml"));
         long tStart = System.currentTimeMillis();
@@ -259,10 +268,5 @@ public class MAVLinkLogReader implements LogReader {
         long tEnd = System.currentTimeMillis();
         System.out.println(tEnd - tStart);
         reader.close();
-    }
-
-    @Override
-    public boolean hasErrors() {
-        return false;
     }
 }

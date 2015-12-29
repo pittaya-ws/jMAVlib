@@ -5,7 +5,9 @@ import me.drton.jmavlib.log.FormatErrorException;
 
 import java.io.EOFException;
 import java.io.IOException;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -163,7 +165,7 @@ public class ULogReader extends BinaryLogReader {
                     MessageFormat msgFormat = messageFormats.get(msgID);
                     if (msgFormat == null) {
                         position(pos);
-                        throw new FormatErrorException("Unknown DATA message ID: " + msgID + " at " + pos);
+                        throw new FormatErrorException(pos, "Unknown DATA message ID: " + msgID);
                     }
                     buffer.position(buffer.position() + msgSize - 10);
                 } else {
@@ -233,7 +235,7 @@ public class ULogReader extends BinaryLogReader {
                 MessageFormat msgFormat = messageFormats.get(msgID);
                 if (msgFormat == null) {
                     position(pos);
-                    throw new FormatErrorException("Unknown DATA message ID: " + msgID + " at " + pos);
+                    throw new FormatErrorException(pos, "Unknown DATA message ID: " + msgID);
                 }
                 msg = new MessageData(msgFormat, buffer);
             } else if (msgType == MESSAGE_TYPE_INFO) {
@@ -247,9 +249,9 @@ public class ULogReader extends BinaryLogReader {
                 System.err.println("Unknown message type: " + msgType + " at " + pos);
                 continue;
             }
-            int size_parsed = (int)(position() - pos - 2);
+            int size_parsed = (int) (position() - pos - 2);
             if (size_parsed != msgSize) {
-                throw new FormatErrorException("Message size mismatch, parsed: " + size_parsed + ", msg size: " + msgSize + " at " + pos);
+                throw new FormatErrorException(pos, "Message size mismatch, parsed: " + size_parsed + ", msg size: " + msgSize);
             }
             return msg;
         }
@@ -279,7 +281,11 @@ public class ULogReader extends BinaryLogReader {
     }
 
     @Override
-    public boolean hasErrors() {
-        return false;
+    public List<Exception> getErrors() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void clearErrors() {
     }
 }

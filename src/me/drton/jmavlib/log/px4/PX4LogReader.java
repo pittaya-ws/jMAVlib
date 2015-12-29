@@ -29,7 +29,7 @@ public class PX4LogReader extends BinaryLogReader {
     private long utcTimeReference = -1;
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
-    private boolean errorsDuringProcessing = false;
+    private List<Exception> errors = new ArrayList<Exception>();
 
     private static Set<String> hideMsgs = new HashSet<String>();
     private static Map<String, String> formatNames = new HashMap<String, String>();
@@ -111,26 +111,10 @@ public class PX4LogReader extends BinaryLogReader {
         long timeEnd = -1;
         boolean parseVersion = true;
         StringBuilder versionStr = new StringBuilder();
-        PX4LogMessage lastMsg = null;
-        PX4LogMessage lastLastMsg = null;
-        long time = 0;
         while (true) {
             PX4LogMessage msg;
             try {
                 msg = readMessage();
-                if (null == msg) {
-                    if (null != lastMsg) {
-                        System.out.println(String.format("Message before null: %s %d", lastMsg.description.name, time - timeStart));
-                    }
-                    if (null != lastLastMsg) {
-                        System.out.println(String.format("Message before that: %s %d", lastLastMsg.description.name, time - timeStart));
-                    }
-                    continue;
-                }
-                else {
-                    lastLastMsg = lastMsg;
-                    lastMsg = msg;
-                }
             } catch (EOFException e) {
                 break;
             }
@@ -220,7 +204,7 @@ public class PX4LogReader extends BinaryLogReader {
     }
 
     @Override
-    public boolean seek(long seekTime) throws IOException, FormatErrorException {
+    public boolean seek(long seekTime) throws IOException {
         position(dataStart);
         lastMsg = null;
         if (seekTime == 0) {      // Seek to start of log
@@ -230,19 +214,19 @@ public class PX4LogReader extends BinaryLogReader {
         // Seek to specified timestamp without parsing all messages
         try {
             while (true) {
-                buffer.mark();
-                int msgType = readHeaderFillBuffer();
+                long pos = position();
+                int msgType = readHeader();
                 PX4LogMessageDescription messageDescription = messageDescriptions.get(msgType);
                 if (messageDescription == null) {
-                    //buffer.reset();
-                    //throw new RuntimeException("Unknown message type: " + msgType);
+                    errors.add(new FormatErrorException(pos, "Unknown message type: " + msgType));
                     continue;
                 }
                 int bodyLen = messageDescription.length - HEADER_LEN;
-                if (buffer.remaining() < bodyLen) {
-                    buffer.reset();
-                    fillBuffer();
-                    continue;
+                try {
+                    fillBuffer(bodyLen);
+                } catch (EOFException e) {
+                    errors.add(new FormatErrorException(pos, "Unexpected end of file"));
+                    throw e;
                 }
                 if (formatPX4) {
                     if ("TIME".equals(messageDescription.name)) {
@@ -251,7 +235,7 @@ public class PX4LogReader extends BinaryLogReader {
                         if (t > seekTime) {
                             // Time found
                             time = t;
-                            buffer.reset();
+                            position(pos);
                             return true;
                         }
                     } else {
@@ -266,7 +250,7 @@ public class PX4LogReader extends BinaryLogReader {
                         if (t > seekTime) {
                             // Time found
                             time = t;
-                            buffer.reset();
+                            position(pos);
                             return true;
                         }
                     } else {
@@ -307,7 +291,7 @@ public class PX4LogReader extends BinaryLogReader {
         }
         while (true) {
             PX4LogMessage msg = readMessage();
-            if (null == msg){
+            if (null == msg) {
                 continue;
             }
 
@@ -367,7 +351,6 @@ public class PX4LogReader extends BinaryLogReader {
                         // Message description
                         PX4LogMessageDescription msgDescr = new PX4LogMessageDescription(buffer);
                         messageDescriptions.put(msgDescr.type, msgDescr);
-                        //System.out.println(String.format("msg: %s, %d, %s", msgDescr.name, msgDescr.type, msgDescr.format));
                         if ("TIME".equals(msgDescr.name)) {
                             formatPX4 = true;
                         }
@@ -406,27 +389,21 @@ public class PX4LogReader extends BinaryLogReader {
     }
 
     private int readHeader() throws IOException {
-        if (buffer.get() != HEADER_HEAD1 || buffer.get() != HEADER_HEAD2) {
-            return -1;
-        }
-        return buffer.get() & 0xFF;
-    }
-
-    private int readHeaderFillBuffer() throws IOException {
+        long syncErr = -1;
         while (true) {
-            if (buffer.remaining() < HEADER_LEN) {
-                if (fillBuffer() == 0) {
-                    throw new BufferUnderflowException();
+            fillBuffer(3);
+            int p = buffer.position();
+            if (buffer.get() != HEADER_HEAD1 || buffer.get() != HEADER_HEAD2) {
+                buffer.position(p + 1);
+                if (syncErr < 0) {
+                    syncErr = position() - 1;
                 }
                 continue;
             }
-            int p = buffer.position();
-            int header = readHeader();
-            if (header < 0) {
-                buffer.position(p + 1);
-            }else{
-                return header;
+            if (syncErr >= 0) {
+                errors.add(new FormatErrorException(syncErr, "Bad message header"));
             }
+            return buffer.get() & 0xFF;
         }
     }
 
@@ -437,21 +414,32 @@ public class PX4LogReader extends BinaryLogReader {
      * @throws IOException  on IO error
      * @throws EOFException on end of stream
      */
-    public PX4LogMessage readMessage() throws IOException, FormatErrorException {
-        int msgType = readHeaderFillBuffer();
-        PX4LogMessageDescription messageDescription = messageDescriptions.get(msgType);
-        if (messageDescription == null) {
-            System.out.println("Unknown message type: " + msgType);
-            errorsDuringProcessing = true;
-            return null;
-        }
-        if (buffer.remaining() < messageDescription.length - HEADER_LEN) {
-            fillBuffer();
-            if (buffer.remaining() < messageDescription.length - HEADER_LEN) {
-                throw new FormatErrorException("Unexpected end of file");
+    public PX4LogMessage readMessage() throws IOException {
+        while (true) {
+            int msgType = readHeader();
+            long pos = position();
+            PX4LogMessageDescription messageDescription = messageDescriptions.get(msgType);
+            if (messageDescription == null) {
+                errors.add(new FormatErrorException(pos, "Unknown message type: " + msgType));
+                continue;
             }
+            try {
+                fillBuffer(messageDescription.length - HEADER_LEN);
+            } catch (EOFException e) {
+                errors.add(new FormatErrorException(pos, "Unexpected end of file"));
+                throw e;
+            }
+            return messageDescription.parseMessage(buffer);
         }
-        return messageDescription.parseMessage(buffer);
+    }
+
+    @Override
+    public List<Exception> getErrors() {
+        return errors;
+    }
+
+    public void clearErrors() {
+        errors.clear();
     }
 
     public static void main(String[] args) throws Exception {
@@ -466,11 +454,9 @@ public class PX4LogReader extends BinaryLogReader {
         }
         long tEnd = System.currentTimeMillis();
         System.out.println(tEnd - tStart);
+        for (Exception e : reader.getErrors()) {
+            System.out.println(e.getMessage());
+        }
         reader.close();
-    }
-
-    @Override
-    public boolean hasErrors() {
-        return errorsDuringProcessing;
     }
 }

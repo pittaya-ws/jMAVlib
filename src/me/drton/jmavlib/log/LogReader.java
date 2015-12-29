@@ -1,6 +1,7 @@
 package me.drton.jmavlib.log;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -91,9 +92,14 @@ public interface LogReader {
     Map<String, Object> getParameters();
 
     /**
-     * Return true if errors occurred during processing.
+     * Return list on non-fatal errors happened during log reading.
      *
-     * @return true if errors occurred, false otherwise.
+     * @return list of errors, null not allowed.
      */
-    boolean hasErrors();
+    List<Exception> getErrors();
+
+    /**
+     * Clear errors list.
+     */
+    void clearErrors();
 }

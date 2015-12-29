@@ -5,6 +5,7 @@ import java.io.IOException;
 import java.io.RandomAccessFile;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -167,6 +168,15 @@ public class CSVLogReader implements LogReader {
         return null;
     }
 
+    @Override
+    public List<Exception> getErrors() {
+        return Collections.emptyList();
+    }
+
+    @Override
+    public void clearErrors() {
+    }
+
     public static void main(String[] args) throws Exception {
         CSVLogReader reader = new CSVLogReader("test.csv");
         long tStart = System.currentTimeMillis();
@@ -184,10 +194,5 @@ public class CSVLogReader implements LogReader {
         long tEnd = System.currentTimeMillis();
         System.out.println(tEnd - tStart);
         reader.close();
-    }
-
-    @Override
-    public boolean hasErrors() {
-        return false;
     }
 }

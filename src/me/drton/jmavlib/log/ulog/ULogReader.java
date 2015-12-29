@@ -5,7 +5,6 @@ import me.drton.jmavlib.log.FormatErrorException;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.BufferUnderflowException;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -14,16 +13,15 @@ import java.util.Map;
  */
 public class ULogReader extends BinaryLogReader {
     static final byte MESSAGE_TYPE_FORMAT = (byte) 'F';
-    static final byte MESSAGE_TYPE_TIME = (byte) 'T';
     static final byte MESSAGE_TYPE_DATA = (byte) 'D';
-    static final byte MESSAGE_TYPE_MULTIDATA = (byte) 'M';
+    static final byte MESSAGE_TYPE_INFO = (byte) 'I';
+    static final byte MESSAGE_TYPE_PARAMETER = (byte) 'P';
 
+    private String systemName = "";
     private long dataStart = 0;
     private Map<Integer, MessageFormat> messageFormats
             = new HashMap<Integer, MessageFormat>();
     private Map<String, String> fieldsList = null;
-    private long time = 0;
-    private MessageData lastMsg = null;
     private long sizeUpdates = -1;
     private long sizeMicroseconds = -1;
     private long startMicroseconds = -1;
@@ -33,13 +31,16 @@ public class ULogReader extends BinaryLogReader {
 
     public ULogReader(String fileName) throws IOException, FormatErrorException {
         super(fileName);
-        readFormats();
         updateStatistics();
     }
 
     @Override
     public String getFormat() {
         return "ULog";
+    }
+
+    public String getSystemName() {
+        return systemName;
     }
 
     @Override
@@ -73,10 +74,11 @@ public class ULogReader extends BinaryLogReader {
     }
 
     private void updateStatistics() throws IOException, FormatErrorException {
-        position(dataStart);
+        position(0);
         long packetsNum = 0;
         long timeStart = -1;
         long timeEnd = -1;
+        fieldsList = new HashMap<String, String>();
         while (true) {
             Object msg;
             try {
@@ -84,47 +86,49 @@ public class ULogReader extends BinaryLogReader {
             } catch (EOFException e) {
                 break;
             }
-            // Time range
-            if (msg instanceof MessageTime) {
-                MessageTime msgTime = (MessageTime) msg;
-                if (timeStart < 0) {
-                    timeStart = msgTime.getTimestamp();
-                }
-                timeEnd = msgTime.getTimestamp();
-            }
             packetsNum++;
 
-            if (msg instanceof MessageData) {
-                MessageData msgData = (MessageData) msg;
-                // Version
-                if ("_VERSION".equals(msgData.format.name)) {
-                    String sw = (String) msgData.get("software");
-                    if (sw != null) {
-                        version.put("FW", sw);
-                    }
-                    String hw = (String) msgData.get("hardware");
-                    if (hw != null) {
-                        version.put("HW", hw);
-                    }
-                }
-
-                // Parameters
-                if ("_PARMETER".equals(msgData.format.name)) {
-                    parameters.put((String) msgData.get("name"), msgData.get("value"));
-                }
-
-                if ("GPS".equals(msgData.format.name)) {
-                    if (utcTimeReference < 0) {
-                        try {
-                            int fix = ((Number) msgData.get("Fix")).intValue();
-                            long gpsT = ((Number) msgData.get("GPSTime")).longValue();
-                            if (fix >= 3 && gpsT > 0) {
-                                utcTimeReference = gpsT - timeEnd;
+            if (msg instanceof MessageFormat) {
+                MessageFormat msgFormat = (MessageFormat) msg;
+                messageFormats.put(msgFormat.msgID, msgFormat);
+                if (msgFormat.name.charAt(0) != '_') {
+                    for (int i = 0; i < msgFormat.fields.length; i++) {
+                        FieldFormat fieldDescr = msgFormat.fields[i];
+                        if (fieldDescr.isArray()) {
+                            for (int j = 0; j < fieldDescr.size; j++) {
+                                fieldsList.put(msgFormat.name + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
                             }
-                        } catch (Exception ignored) {
+                        } else {
+                            fieldsList.put(msgFormat.name + "." + fieldDescr.name, fieldDescr.type);
                         }
                     }
                 }
+
+            } else if (msg instanceof MessageParameter) {
+                MessageParameter msgParam = (MessageParameter) msg;
+                parameters.put(msgParam.getKey(), msgParam.value);
+
+            } else if (msg instanceof MessageInfo) {
+                MessageInfo msgInfo = (MessageInfo) msg;
+                if ("sys_name".equals(msgInfo.getKey())) {
+                    systemName = (String) msgInfo.value;
+                } else if ("ver_hw".equals(msgInfo.getKey())) {
+                    version.put("HW", msgInfo.value);
+                } else if ("ver_sw".equals(msgInfo.getKey())) {
+                    version.put("FW", msgInfo.value);
+                } else if ("time_ref_utc".equals(msgInfo.getKey())) {
+                    utcTimeReference = ((Number) msgInfo.value).longValue();
+                }
+
+            } else if (msg instanceof MessageData) {
+                if (dataStart == 0) {
+                    dataStart = position();
+                }
+                MessageData msgData = (MessageData) msg;
+                if (timeStart < 0) {
+                    timeStart = msgData.timestamp;
+                }
+                timeEnd = msgData.timestamp;
             }
         }
         startMicroseconds = timeStart;
@@ -136,48 +140,35 @@ public class ULogReader extends BinaryLogReader {
     @Override
     public boolean seek(long seekTime) throws IOException, FormatErrorException {
         position(dataStart);
-        lastMsg = null;
         if (seekTime == 0) {      // Seek to start of log
-            time = 0;
             return true;
         }
         // Seek to specified timestamp without parsing all messages
         try {
             while (true) {
                 fillBuffer(2);
-                buffer.mark();
+                long pos = position();
                 int msgType = buffer.get() & 0xFF;
+                int msgSize = buffer.get() & 0xFF;
+                fillBuffer(msgSize);
                 if (msgType == MESSAGE_TYPE_DATA) {
                     int msgID = buffer.get() & 0xFF;
-                    MessageFormat msgFormat = messageFormats.get(msgID);
-                    if (msgFormat == null) {
-                        buffer.reset();
-                        throw new FormatErrorException("Unknown message ID: " + msgID + " at " + position());
-                    }
-                    fillBuffer(msgFormat.size);
-                    buffer.position(buffer.position() + msgFormat.size);
-                } else if (msgType == MESSAGE_TYPE_MULTIDATA) {
-                    int msgID = buffer.get() & 0xFF;
-                    MessageFormat msgFormat = messageFormats.get(msgID);
-                    if (msgFormat == null) {
-                        buffer.reset();
-                        throw new FormatErrorException("Unknown message ID: " + msgID + " at " + position());
-                    }
-                    fillBuffer(1 + msgFormat.size);
-                    buffer.position(buffer.position() + 1 + msgFormat.size);
-                } else if (msgType == MESSAGE_TYPE_TIME) {
-                    fillBuffer(MessageTime.SIZE);
-                    MessageTime msgTime = new MessageTime(buffer);
-                    if (msgTime.getTimestamp() > seekTime) {
+                    buffer.get();   // MultiID
+                    long timestamp = buffer.getLong();
+                    if (timestamp >= seekTime) {
                         // Time found
-                        time = msgTime.getTimestamp();
-                        buffer.reset();
+                        position(pos);
                         return true;
                     }
-
+                    MessageFormat msgFormat = messageFormats.get(msgID);
+                    if (msgFormat == null) {
+                        position(pos);
+                        throw new FormatErrorException("Unknown DATA message ID: " + msgID + " at " + pos);
+                    }
+                    buffer.position(buffer.position() + msgSize - 10);
                 } else {
-                    buffer.reset();
-                    throw new FormatErrorException("Unknown message type: " + msgType + " at " + position());
+                    fillBuffer(msgSize);
+                    buffer.position(buffer.position() + msgSize);
                 }
             }
         } catch (EOFException e) {
@@ -186,21 +177,17 @@ public class ULogReader extends BinaryLogReader {
     }
 
     private void applyMsg(Map<String, Object> update, MessageData msg) {
-        boolean isActive = true;
-        if (msg instanceof MessageMultidata) {
-            applyMsgAsName(update, msg, msg.format.name + "[" + ((MessageMultidata) msg).getMultiID() + "]");
-            isActive = ((MessageMultidata) msg).isActive();
-        }
-        if (isActive) {
+        applyMsgAsName(update, msg, msg.format.name + "[" + msg.multiID + "]");
+        if (msg.isActive) {
             applyMsgAsName(update, msg, msg.format.name);
         }
     }
 
     void applyMsgAsName(Map<String, Object> update, MessageData msg, String msg_name) {
-        MessageFormat.FieldFormat[] fields = msg.format.fields;
+        FieldFormat[] fields = msg.format.fields;
         for (int i = 0; i < fields.length; i++) {
-            MessageFormat.FieldFormat field = fields[i];
-            if (field.size >= 0) {
+            FieldFormat field = fields[i];
+            if (field.isArray()) {
                 for (int j = 0; j < field.size; j++) {
                     update.put(msg_name + "." + field.name + "[" + j + "]", ((Object[]) msg.get(i))[j]);
                 }
@@ -212,73 +199,18 @@ public class ULogReader extends BinaryLogReader {
 
     @Override
     public long readUpdate(Map<String, Object> update) throws IOException, FormatErrorException {
-        long t = time;
-        if (lastMsg != null) {
-            applyMsg(update, lastMsg);
-            lastMsg = null;
-        }
         while (true) {
             Object msg = readMessage();
-
-            if (msg instanceof MessageTime) {
-                time = ((MessageTime) msg).getTimestamp();
-                if (t == 0) {
-                    // The first TIME message
-                    t = time;
-                    continue;
-                }
-                break;
-            } else if (msg instanceof MessageData) {
+            if (msg instanceof MessageData) {
                 applyMsg(update, (MessageData) msg);
+                return ((MessageData) msg).timestamp;
             }
         }
-        return t;
     }
 
     @Override
     public Map<String, String> getFields() {
         return fieldsList;
-    }
-
-    private void readFormats() throws IOException, FormatErrorException {
-        fieldsList = new HashMap<String, String>();
-        try {
-            while (true) {
-                fillBuffer(4);  // Min size of FORMAT message
-                while (true) {
-                    buffer.mark();
-                    try {
-                        int msgType = buffer.get() & 0xFF;
-                        if (msgType == MESSAGE_TYPE_FORMAT) {
-                            // Message format
-                            MessageFormat msgFormat = new MessageFormat(buffer);
-                            messageFormats.put(msgFormat.msgID, msgFormat);
-                            if (msgFormat.name.charAt(0) != '_') {
-                                for (int i = 0; i < msgFormat.fields.length; i++) {
-                                    MessageFormat.FieldFormat fieldDescr = msgFormat.fields[i];
-                                    if (fieldDescr.size >= 0) {
-                                        for (int j = 0; j < fieldDescr.size; j++) {
-                                            fieldsList.put(msgFormat.name + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
-                                        }
-                                    } else {
-                                        fieldsList.put(msgFormat.name + "." + fieldDescr.name, fieldDescr.type);
-                                    }
-                                }
-                            }
-                        } else {
-                            // Data message
-                            buffer.reset();
-                            dataStart = position();
-                            return;
-                        }
-                    } catch (BufferUnderflowException e) {
-                        buffer.reset();
-                        break;
-                    }
-                }
-            }
-        } catch (EOFException ignored) {
-        }
     }
 
     /**
@@ -289,51 +221,54 @@ public class ULogReader extends BinaryLogReader {
      * @throws EOFException on end of stream
      */
     public Object readMessage() throws IOException, FormatErrorException {
-        fillBuffer(2);
-        buffer.mark();
-        int msgType = buffer.get() & 0xFF;
-        if (msgType == MESSAGE_TYPE_DATA) {
-            int msgID = buffer.get() & 0xFF;
-            MessageFormat msgFormat = messageFormats.get(msgID);
-            if (msgFormat == null) {
-                buffer.reset();
-                throw new FormatErrorException("Unknown message ID: " + msgID + " at " + position());
-            }
-            fillBuffer(msgFormat.size);
-            return new MessageData(msgFormat, buffer);
-        } else if (msgType == MESSAGE_TYPE_MULTIDATA) {
+        while (true) {
             fillBuffer(2);
-            int msgID = buffer.get() & 0xFF;
-            byte multiIDRaw = buffer.get();
-            MessageFormat msgFormat = messageFormats.get(msgID);
-            if (msgFormat == null) {
-                buffer.reset();
-                throw new FormatErrorException("Unknown message ID: " + msgID + " at " + position());
+            long pos = position();
+            int msgType = buffer.get() & 0xFF;
+            int msgSize = buffer.get() & 0xFF;
+            fillBuffer(msgSize);
+            Object msg;
+            if (msgType == MESSAGE_TYPE_DATA) {
+                int msgID = buffer.get() & 0xFF;
+                MessageFormat msgFormat = messageFormats.get(msgID);
+                if (msgFormat == null) {
+                    position(pos);
+                    throw new FormatErrorException("Unknown DATA message ID: " + msgID + " at " + pos);
+                }
+                msg = new MessageData(msgFormat, buffer);
+            } else if (msgType == MESSAGE_TYPE_INFO) {
+                msg = new MessageInfo(buffer);
+            } else if (msgType == MESSAGE_TYPE_PARAMETER) {
+                msg = new MessageParameter(buffer);
+            } else if (msgType == MESSAGE_TYPE_FORMAT) {
+                msg = new MessageFormat(buffer);
+            } else {
+                buffer.position(buffer.position() + msgSize);
+                System.err.println("Unknown message type: " + msgType + " at " + pos);
+                continue;
             }
-            fillBuffer(msgFormat.size);
-            return new MessageMultidata(msgFormat, multiIDRaw, buffer);
-        } else if (msgType == MESSAGE_TYPE_TIME) {
-            fillBuffer(MessageTime.SIZE);
-            return new MessageTime(buffer);
-        } else {
-            buffer.reset();
-            throw new FormatErrorException("Unknown message type: " + msgType + " at " + position());
+            int size_parsed = (int)(position() - pos - 2);
+            if (size_parsed != msgSize) {
+                throw new FormatErrorException("Message size mismatch, parsed: " + size_parsed + ", msg size: " + msgSize + " at " + pos);
+            }
+            return msg;
         }
     }
 
     public static void main(String[] args) throws Exception {
-        ULogReader reader = new ULogReader("test.p5l");
+        ULogReader reader = new ULogReader("test.ulg");
         long tStart = System.currentTimeMillis();
         while (true) {
 //            try {
 //                Object msg = reader.readMessage();
+//                System.out.println(msg);
 //            } catch (EOFException e) {
 //                break;
 //            }
             Map<String, Object> update = new HashMap<String, Object>();
             try {
                 reader.readUpdate(update);
-                System.out.println(update);
+//                System.out.println(update);
             } catch (EOFException e) {
                 break;
             }

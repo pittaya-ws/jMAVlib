@@ -44,6 +44,11 @@ public interface LogReader {
     String getFormat();
 
     /**
+     * Get system name.
+     */
+    String getSystemName();
+
+    /**
      * Get number of records (updates) in the log.
      *
      * @return number of records

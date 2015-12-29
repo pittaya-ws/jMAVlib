@@ -70,6 +70,11 @@ public class PX4LogReader extends BinaryLogReader {
     }
 
     @Override
+    public String getSystemName() {
+        return getFormat();
+    }
+
+    @Override
     public long getSizeUpdates() {
         return sizeUpdates;
     }

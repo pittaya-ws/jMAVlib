@@ -5,10 +5,7 @@ import me.drton.jmavlib.log.FormatErrorException;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import java.util.*;
 
 /**
  * User: ton Date: 03.06.13 Time: 14:18
@@ -30,6 +27,7 @@ public class ULogReader extends BinaryLogReader {
     private long utcTimeReference = -1;
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
+    private List<Exception> errors = new ArrayList<Exception>();
 
     public ULogReader(String fileName) throws IOException, FormatErrorException {
         super(fileName);
@@ -228,16 +226,24 @@ public class ULogReader extends BinaryLogReader {
             long pos = position();
             int msgType = buffer.get() & 0xFF;
             int msgSize = buffer.get() & 0xFF;
-            fillBuffer(msgSize);
+            try {
+                fillBuffer(msgSize);
+            } catch (EOFException e) {
+                errors.add(new FormatErrorException(pos, "Unexpected end of file"));
+                throw e;
+            }
             Object msg;
             if (msgType == MESSAGE_TYPE_DATA) {
                 int msgID = buffer.get() & 0xFF;
                 MessageFormat msgFormat = messageFormats.get(msgID);
                 if (msgFormat == null) {
                     position(pos);
-                    throw new FormatErrorException(pos, "Unknown DATA message ID: " + msgID);
+                    errors.add(new FormatErrorException(pos, "Unknown DATA message ID: " + msgID));
+                    buffer.position(buffer.position() + msgSize - 1);
+                    continue;
+                } else {
+                    msg = new MessageData(msgFormat, buffer);
                 }
-                msg = new MessageData(msgFormat, buffer);
             } else if (msgType == MESSAGE_TYPE_INFO) {
                 msg = new MessageInfo(buffer);
             } else if (msgType == MESSAGE_TYPE_PARAMETER) {
@@ -246,12 +252,13 @@ public class ULogReader extends BinaryLogReader {
                 msg = new MessageFormat(buffer);
             } else {
                 buffer.position(buffer.position() + msgSize);
-                System.err.println("Unknown message type: " + msgType + " at " + pos);
+                errors.add(new FormatErrorException(pos, "Unknown message type: " + msgType));
                 continue;
             }
-            int size_parsed = (int) (position() - pos - 2);
-            if (size_parsed != msgSize) {
-                throw new FormatErrorException(pos, "Message size mismatch, parsed: " + size_parsed + ", msg size: " + msgSize);
+            int sizeParsed = (int) (position() - pos - 2);
+            if (sizeParsed != msgSize) {
+                errors.add(new FormatErrorException(pos, "Message size mismatch, parsed: " + sizeParsed + ", msg size: " + msgSize));
+                buffer.position(buffer.position() + msgSize - sizeParsed);
             }
             return msg;
         }

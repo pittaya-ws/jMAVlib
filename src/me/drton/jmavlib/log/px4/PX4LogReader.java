@@ -230,7 +230,7 @@ public class PX4LogReader extends BinaryLogReader {
                 try {
                     fillBuffer(bodyLen);
                 } catch (EOFException e) {
-                    errors.add(new FormatErrorException(pos, "Unexpected end of file"));
+                    //errors.add(new FormatErrorException(pos, "Unexpected end of file"));
                     throw e;
                 }
                 if (formatPX4) {
@@ -452,7 +452,7 @@ public class PX4LogReader extends BinaryLogReader {
             try {
                 fillBuffer(messageDescription.length - HEADER_LEN);
             } catch (EOFException e) {
-                errors.add(new FormatErrorException(pos, "Unexpected end of file"));
+                //errors.add(new FormatErrorException(pos, "Unexpected end of file"));
                 throw e;
             }
             return messageDescription.parseMessage(buffer);

@@ -222,10 +222,12 @@ public class ULogReader extends BinaryLogReader {
      */
     public Object readMessage() throws IOException, FormatErrorException {
         while (true) {
-            fillBuffer(2);
+            fillBuffer(3);
             long pos = position();
             int msgType = buffer.get() & 0xFF;
-            int msgSize = buffer.get() & 0xFF;
+            int s1 = buffer.get() & 0xFF;
+            int s2 = buffer.get() & 0xFF;
+            int msgSize = s1 + (256 * s2);
             try {
                 fillBuffer(msgSize);
             } catch (EOFException e) {

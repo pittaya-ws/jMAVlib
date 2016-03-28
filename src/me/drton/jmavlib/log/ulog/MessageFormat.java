@@ -23,7 +23,9 @@ public class MessageFormat {
 
     public MessageFormat(ByteBuffer buffer) {
         msgID = buffer.get() & 0xFF;
-        int format_len = buffer.get() & 0xFF;
+        int s1 = buffer.get() & 0xFF;
+        int s2 = buffer.get() & 0xFF;
+        int format_len = s1 + (256 * s2);
         String[] descr_str = getString(buffer, format_len).split(":");
         name = descr_str[0];
         if (descr_str.length > 1) {

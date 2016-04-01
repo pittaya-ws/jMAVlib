@@ -146,10 +146,12 @@ public class ULogReader extends BinaryLogReader {
         // Seek to specified timestamp without parsing all messages
         try {
             while (true) {
-                fillBuffer(2);
+                fillBuffer(3);
                 long pos = position();
                 int msgType = buffer.get() & 0xFF;
-                int msgSize = buffer.get() & 0xFF;
+                int s1 = buffer.get() & 0xFF;
+                int s2 = buffer.get() & 0xFF;
+                int msgSize = s1 + (256 * s2);
                 fillBuffer(msgSize);
                 if (msgType == MESSAGE_TYPE_DATA) {
                     int msgID = buffer.get() & 0xFF;
@@ -165,7 +167,7 @@ public class ULogReader extends BinaryLogReader {
                         position(pos);
                         throw new FormatErrorException(pos, "Unknown DATA message ID: " + msgID);
                     }
-                    buffer.position(buffer.position() + msgSize - 10);
+                    buffer.position(buffer.position() + msgSize - 11);
                 } else {
                     fillBuffer(msgSize);
                     buffer.position(buffer.position() + msgSize);

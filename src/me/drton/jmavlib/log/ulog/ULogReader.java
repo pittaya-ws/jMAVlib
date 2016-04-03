@@ -3,8 +3,7 @@ package me.drton.jmavlib.log.ulog;
 import me.drton.jmavlib.log.BinaryLogReader;
 import me.drton.jmavlib.log.FormatErrorException;
 
-import java.io.EOFException;
-import java.io.IOException;
+import java.io.*;
 import java.util.*;
 
 /**
@@ -25,6 +24,8 @@ public class ULogReader extends BinaryLogReader {
     private long sizeMicroseconds = -1;
     private long startMicroseconds = -1;
     private long utcTimeReference = -1;
+    private Map<Integer, Integer> maxMultiID
+            = new HashMap<Integer, Integer>();
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
     private List<Exception> errors = new ArrayList<Exception>();
@@ -91,18 +92,6 @@ public class ULogReader extends BinaryLogReader {
             if (msg instanceof MessageFormat) {
                 MessageFormat msgFormat = (MessageFormat) msg;
                 messageFormats.put(msgFormat.msgID, msgFormat);
-                if (msgFormat.name.charAt(0) != '_') {
-                    for (int i = 0; i < msgFormat.fields.length; i++) {
-                        FieldFormat fieldDescr = msgFormat.fields[i];
-                        if (fieldDescr.isArray()) {
-                            for (int j = 0; j < fieldDescr.size; j++) {
-                                fieldsList.put(msgFormat.name + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
-                            }
-                        } else {
-                            fieldsList.put(msgFormat.name + "." + fieldDescr.name, fieldDescr.type);
-                        }
-                    }
-                }
 
             } else if (msg instanceof MessageParameter) {
                 MessageParameter msgParam = (MessageParameter) msg;
@@ -129,6 +118,42 @@ public class ULogReader extends BinaryLogReader {
                     timeStart = msgData.timestamp;
                 }
                 timeEnd = msgData.timestamp;
+                int msgID = msgData.format.msgID;
+                if (maxMultiID.containsKey(msgID)) {
+                    if (maxMultiID.get(msgID) < msgData.multiID) maxMultiID.put(msgID, msgData.multiID);
+                } else {
+                    maxMultiID.put(msgID, msgData.multiID);
+                }
+            }
+        }
+        // make a second pass filling the fieldsList now that we know how many multi-instances are in the log
+        position(0);
+        while (true) {
+            Object msg;
+            try {
+                msg = readMessage();
+            } catch (EOFException e) {
+                break;
+            }
+            if (msg instanceof MessageFormat) {
+                MessageFormat msgFormat = (MessageFormat) msg;
+                if (msgFormat.name.charAt(0) != '_') {
+                    for (int i = 0; i < msgFormat.fields.length; i++) {
+                        FieldFormat fieldDescr = msgFormat.fields[i];
+                        for (int mid=0; mid<=maxMultiID.get(msgFormat.msgID); mid++) {
+                            if (fieldDescr.isArray()) {
+                                for (int j = 0; j < fieldDescr.size; j++) {
+                                    fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
+                                }
+                            } else {
+                                fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name, fieldDescr.type);
+                            }
+                        }
+                    }
+                }
+            }
+            if (msg instanceof MessageData) {
+                break;
             }
         }
         startMicroseconds = timeStart;
@@ -179,10 +204,10 @@ public class ULogReader extends BinaryLogReader {
     }
 
     private void applyMsg(Map<String, Object> update, MessageData msg) {
-        applyMsgAsName(update, msg, msg.format.name + "[" + msg.multiID + "]");
-        if (msg.isActive) {
-            applyMsgAsName(update, msg, msg.format.name);
-        }
+        applyMsgAsName(update, msg, msg.format.name + "_" + msg.multiID);
+//        if (msg.isActive) {
+//            applyMsgAsName(update, msg, msg.format.name);
+//        }
     }
 
     void applyMsgAsName(Map<String, Object> update, MessageData msg, String msg_name) {
@@ -269,8 +294,10 @@ public class ULogReader extends BinaryLogReader {
     }
 
     public static void main(String[] args) throws Exception {
-        ULogReader reader = new ULogReader("test.ulg");
+        ULogReader reader = new ULogReader("log001.ulg");
         long tStart = System.currentTimeMillis();
+        long last_t = 0;
+        Map<String, PrintStream> ostream = new HashMap<String, PrintStream>();
         while (true) {
 //            try {
 //                Object msg = reader.readMessage();
@@ -280,8 +307,37 @@ public class ULogReader extends BinaryLogReader {
 //            }
             Map<String, Object> update = new HashMap<String, Object>();
             try {
-                reader.readUpdate(update);
-//                System.out.println(update);
+                long t = reader.readUpdate(update);
+                double tsec = (double)t / 1e6;
+                System.out.printf("timestamp: %8.3f", tsec);
+                double dt = (double)t / 1e6 - (double)last_t / 1e6;
+                last_t = t;
+                System.out.printf(" dt: %8.3f\n", dt);
+                String stream = update.keySet().iterator().next().split("\\.")[0];
+//                Set<String> keyset = update.keySet();
+//                String fieldName = keyset.iterator().next();
+//                String[] parts = fieldName.split("\\.");
+//                String stream = parts[0];
+                if (!ostream.containsKey(stream)) {
+                    PrintStream newStream = new PrintStream(stream + ".csv");
+                    ostream.put(stream, newStream);
+                    Iterator<String> keys = update.keySet().iterator();
+                    newStream.print("timestamp");
+                    while (keys.hasNext()) {
+                        newStream.print(',');
+                        newStream.print(keys.next());
+                    }
+                    newStream.println();
+                }
+                // append this record to output stream
+                PrintStream curStream = ostream.get(stream);
+                curStream.print(t);
+                for (Object field: update.values()) {
+                    curStream.print(',');
+                    curStream.print(field.toString());
+                }
+                curStream.println();
+//                ostream.get(stream).write(update.toString().getBytes());
             } catch (EOFException e) {
                 break;
             }

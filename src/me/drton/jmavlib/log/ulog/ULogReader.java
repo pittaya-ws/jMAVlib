@@ -293,6 +293,10 @@ public class ULogReader extends BinaryLogReader {
         }
     }
 
+    /*
+    Dump each stream of message data records to a CSV file named "topic_N.csv"
+    First line of each file is "timestamp,field1,field2,..."
+     */
     public static void main(String[] args) throws Exception {
         ULogReader reader = new ULogReader("log001.ulg");
         long tStart = System.currentTimeMillis();
@@ -314,10 +318,6 @@ public class ULogReader extends BinaryLogReader {
                 last_t = t;
                 System.out.printf(" dt: %8.3f\n", dt);
                 String stream = update.keySet().iterator().next().split("\\.")[0];
-//                Set<String> keyset = update.keySet();
-//                String fieldName = keyset.iterator().next();
-//                String[] parts = fieldName.split("\\.");
-//                String stream = parts[0];
                 if (!ostream.containsKey(stream)) {
                     PrintStream newStream = new PrintStream(stream + ".csv");
                     ostream.put(stream, newStream);
@@ -337,7 +337,6 @@ public class ULogReader extends BinaryLogReader {
                     curStream.print(field.toString());
                 }
                 curStream.println();
-//                ostream.get(stream).write(update.toString().getBytes());
             } catch (EOFException e) {
                 break;
             }

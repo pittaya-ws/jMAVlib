@@ -117,7 +117,7 @@ public class ULogReader extends BinaryLogReader {
                 if (timeStart < 0) {
                     timeStart = msgData.timestamp;
                 }
-                timeEnd = msgData.timestamp;
+                if (timeEnd < msgData.timestamp) timeEnd = msgData.timestamp;
                 int msgID = msgData.format.msgID;
                 if (maxMultiID.containsKey(msgID)) {
                     if (maxMultiID.get(msgID) < msgData.multiID) maxMultiID.put(msgID, msgData.multiID);
@@ -138,17 +138,22 @@ public class ULogReader extends BinaryLogReader {
             if (msg instanceof MessageFormat) {
                 MessageFormat msgFormat = (MessageFormat) msg;
                 if (msgFormat.name.charAt(0) != '_') {
-                    for (int i = 0; i < msgFormat.fields.length; i++) {
-                        FieldFormat fieldDescr = msgFormat.fields[i];
-                        for (int mid=0; mid<=maxMultiID.get(msgFormat.msgID); mid++) {
-                            if (fieldDescr.isArray()) {
-                                for (int j = 0; j < fieldDescr.size; j++) {
-                                    fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
+                    try {
+                        int maxInstance = maxMultiID.get(msgFormat.msgID);
+                        for (int i = 0; i < msgFormat.fields.length; i++) {
+                            FieldFormat fieldDescr = msgFormat.fields[i];
+                            for (int mid=0; mid<=maxInstance; mid++) {
+                                if (fieldDescr.isArray()) {
+                                    for (int j = 0; j < fieldDescr.size; j++) {
+                                        fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
+                                    }
+                                } else {
+                                    fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name, fieldDescr.type);
                                 }
-                            } else {
-                                fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name, fieldDescr.type);
                             }
                         }
+                    } catch (NullPointerException e) {
+                        continue;
                     }
                 }
             }
@@ -313,12 +318,12 @@ public class ULogReader extends BinaryLogReader {
             try {
                 long t = reader.readUpdate(update);
                 double tsec = (double)t / 1e6;
-                System.out.printf("timestamp: %8.3f", tsec);
+//                System.out.printf("timestamp: %8.3f", tsec);
                 double dt = (double)t / 1e6 - (double)last_t / 1e6;
                 last_t = t;
-                System.out.printf(" dt: %8.3f\n", dt);
                 String stream = update.keySet().iterator().next().split("\\.")[0];
                 if (!ostream.containsKey(stream)) {
+                    System.out.println("creating stream " + stream);
                     PrintStream newStream = new PrintStream(stream + ".csv");
                     ostream.put(stream, newStream);
                     Iterator<String> keys = update.keySet().iterator();

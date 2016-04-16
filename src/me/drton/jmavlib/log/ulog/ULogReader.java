@@ -3,6 +3,7 @@ package me.drton.jmavlib.log.ulog;
 import me.drton.jmavlib.log.BinaryLogReader;
 import me.drton.jmavlib.log.FormatErrorException;
 
+import javax.swing.*;
 import java.io.*;
 import java.util.*;
 
@@ -303,10 +304,33 @@ public class ULogReader extends BinaryLogReader {
     First line of each file is "timestamp,field1,field2,..."
      */
     public static void main(String[] args) throws Exception {
-        ULogReader reader = new ULogReader("log001.ulg");
+        ULogReader reader = null;
+        JFileChooser openLogFileChooser = new JFileChooser();
+        String basePath = "/home/markw/gdrive/flightlogs/logger";
+        openLogFileChooser.setCurrentDirectory(new File(basePath));
+        int returnVal = openLogFileChooser.showDialog(null, "Open");
+        if (returnVal == JFileChooser.APPROVE_OPTION) {
+            File file = openLogFileChooser.getSelectedFile();
+            String logFileName = file.getPath();
+            basePath = file.getParent();
+            reader = new ULogReader(logFileName);
+        } else {
+            System.exit(0);
+        }
+        // write all parameters to a gnu Octave data file
+        FileWriter fileWriter = new FileWriter(new File(basePath + File.separator + "parameters.text"));
+        Map<String, Object> tmap = new TreeMap<String, Object>(reader.parameters);
+        Set pSet = tmap.entrySet();
+        for (Object aPSet : pSet) {
+            Map.Entry param = (Map.Entry) aPSet;
+            fileWriter.write(String.format("# name: %s\n#type: scalar\n%s\n", param.getKey(), param.getValue()));
+        }
+        fileWriter.close();
         long tStart = System.currentTimeMillis();
-        long last_t = 0;
+        double last_t = 0;
+        double last_p = 0;
         Map<String, PrintStream> ostream = new HashMap<String, PrintStream>();
+        Map<String, Double> lastTimeStamp = new HashMap<String, Double>();
         while (true) {
 //            try {
 //                Object msg = reader.readMessage();
@@ -318,14 +342,18 @@ public class ULogReader extends BinaryLogReader {
             try {
                 long t = reader.readUpdate(update);
                 double tsec = (double)t / 1e6;
-//                System.out.printf("timestamp: %8.3f", tsec);
-                double dt = (double)t / 1e6 - (double)last_t / 1e6;
-                last_t = t;
+                if (tsec > (last_p + 1)) {
+                    last_p = tsec;
+                    System.out.printf("%8.0f\n", tsec);
+                }
+                // keys in Map "update" are fieldnames beginning with the topic name e.g. SENSOR_GYRO_0.someField
+                // Create a printstream for each topic when it is first encountered
                 String stream = update.keySet().iterator().next().split("\\.")[0];
                 if (!ostream.containsKey(stream)) {
                     System.out.println("creating stream " + stream);
-                    PrintStream newStream = new PrintStream(stream + ".csv");
+                    PrintStream newStream = new PrintStream(basePath + File.separator + stream + ".csv");
                     ostream.put(stream, newStream);
+                    lastTimeStamp.put(stream, tsec);
                     Iterator<String> keys = update.keySet().iterator();
                     newStream.print("timestamp");
                     while (keys.hasNext()) {
@@ -342,6 +370,14 @@ public class ULogReader extends BinaryLogReader {
                     curStream.print(field.toString());
                 }
                 curStream.println();
+                // check gyro stream for dropouts
+                if (stream.startsWith("SENSOR_GYRO")) {
+                    double dt = tsec - lastTimeStamp.get(stream);
+                    if (dt > .010) {
+                        System.out.println("gyro dropout length: " + dt);
+                    }
+                    lastTimeStamp.put(stream, tsec);
+                }
             } catch (EOFException e) {
                 break;
             }

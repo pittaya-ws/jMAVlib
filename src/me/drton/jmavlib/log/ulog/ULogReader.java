@@ -16,7 +16,7 @@ public class ULogReader extends BinaryLogReader {
     static final byte MESSAGE_TYPE_INFO = (byte) 'I';
     static final byte MESSAGE_TYPE_PARAMETER = (byte) 'P';
 
-    private String systemName = "";
+    private String systemName = "PX4";
     private long dataStart = 0;
     private Map<Integer, MessageFormat> messageFormats
             = new HashMap<Integer, MessageFormat>();
@@ -25,8 +25,7 @@ public class ULogReader extends BinaryLogReader {
     private long sizeMicroseconds = -1;
     private long startMicroseconds = -1;
     private long utcTimeReference = -1;
-    private Map<Integer, Integer> maxMultiID
-            = new HashMap<Integer, Integer>();
+    private Map<Integer, Integer> maxMultiID = new HashMap<Integer, Integer>();
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
     private List<Exception> errors = new ArrayList<Exception>();

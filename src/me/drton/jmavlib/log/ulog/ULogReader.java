@@ -15,6 +15,7 @@ public class ULogReader extends BinaryLogReader {
     static final byte MESSAGE_TYPE_DATA = (byte) 'D';
     static final byte MESSAGE_TYPE_INFO = (byte) 'I';
     static final byte MESSAGE_TYPE_PARAMETER = (byte) 'P';
+    static final int HDRLEN = 3;
 
     private String systemName = "PX4";
     private long dataStart = 0;
@@ -28,21 +29,35 @@ public class ULogReader extends BinaryLogReader {
     private Map<Integer, Integer> maxMultiID = new HashMap<Integer, Integer>();
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
-    private Map<String, List<ParamUpdate>> parameterUpdates = new HashMap<String, List<ParamUpdate>>();
-    private class ParamUpdate {
-        public String name;
-        public Object value;
-        public long timestamp = -1;
-        public ParamUpdate(String nm, Object v, long ts) {
+
+    public Map<String, List<ParamUpdate>> parameterUpdates;
+    public class ParamUpdate {
+        private String name;
+        private Object value;
+        private long timestamp = -1;
+        private ParamUpdate(String nm, Object v, long ts) {
             name = nm;
             value = v;
             timestamp = ts;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public Object getValue() {
+            return value;
+        }
+
+        public long getTimestamp() {
+            return timestamp;
         }
     }
     private List<Exception> errors = new ArrayList<Exception>();
 
     public ULogReader(String fileName) throws IOException, FormatErrorException {
         super(fileName);
+        parameterUpdates = new HashMap<String, List<ParamUpdate>>();
         updateStatistics();
     }
 
@@ -202,7 +217,7 @@ public class ULogReader extends BinaryLogReader {
         // Seek to specified timestamp without parsing all messages
         try {
             while (true) {
-                fillBuffer(3);
+                fillBuffer(HDRLEN);
                 long pos = position();
                 int msgType = buffer.get() & 0xFF;
                 int s1 = buffer.get() & 0xFF;
@@ -223,7 +238,8 @@ public class ULogReader extends BinaryLogReader {
                         position(pos);
                         throw new FormatErrorException(pos, "Unknown DATA message ID: " + msgID);
                     }
-                    buffer.position(buffer.position() + msgSize - 11);
+                    // magic number 10 depends on HDRLEN ???
+                    buffer.position(buffer.position() + msgSize - 10);
                 } else {
                     fillBuffer(msgSize);
                     buffer.position(buffer.position() + msgSize);
@@ -280,7 +296,7 @@ public class ULogReader extends BinaryLogReader {
      */
     public Object readMessage() throws IOException, FormatErrorException {
         while (true) {
-            fillBuffer(3);
+            fillBuffer(HDRLEN);
             long pos = position();
             int msgType = buffer.get() & 0xFF;
             int s1 = buffer.get() & 0xFF;
@@ -315,7 +331,7 @@ public class ULogReader extends BinaryLogReader {
                 errors.add(new FormatErrorException(pos, "Unknown message type: " + msgType));
                 continue;
             }
-            int sizeParsed = (int) (position() - pos - 3);
+            int sizeParsed = (int) (position() - pos - HDRLEN);
             if (sizeParsed != msgSize) {
                 errors.add(new FormatErrorException(pos, "Message size mismatch, parsed: " + sizeParsed + ", msg size: " + msgSize));
                 buffer.position(buffer.position() + msgSize - sizeParsed);

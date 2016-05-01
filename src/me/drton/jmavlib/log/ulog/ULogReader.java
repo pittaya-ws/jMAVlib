@@ -28,6 +28,17 @@ public class ULogReader extends BinaryLogReader {
     private Map<Integer, Integer> maxMultiID = new HashMap<Integer, Integer>();
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
+    private Map<String, List<ParamUpdate>> parameterUpdates = new HashMap<String, List<ParamUpdate>>();
+    private class ParamUpdate {
+        public String name;
+        public Object value;
+        public long timestamp = -1;
+        public ParamUpdate(String nm, Object v, long ts) {
+            name = nm;
+            value = v;
+            timestamp = ts;
+        }
+    }
     private List<Exception> errors = new ArrayList<Exception>();
 
     public ULogReader(String fileName) throws IOException, FormatErrorException {
@@ -79,6 +90,7 @@ public class ULogReader extends BinaryLogReader {
         long packetsNum = 0;
         long timeStart = -1;
         long timeEnd = -1;
+        long lastTime = -1;
         fieldsList = new HashMap<String, String>();
         while (true) {
             Object msg;
@@ -95,7 +107,20 @@ public class ULogReader extends BinaryLogReader {
 
             } else if (msg instanceof MessageParameter) {
                 MessageParameter msgParam = (MessageParameter) msg;
-                parameters.put(msgParam.getKey(), msgParam.value);
+                if (parameters.containsKey(msgParam.getKey())) {
+                    System.out.println("update to parameter: " + msgParam.getKey() + " value: " + msgParam.value + " at t = " + lastTime);
+                    // maintain a record of parameters which change during flight
+                    if (parameterUpdates.containsKey(msgParam.getKey())) {
+                        parameterUpdates.get(msgParam.getKey()).add(new ParamUpdate(msgParam.getKey(), msgParam.value, lastTime));
+                    } else {
+                        List<ParamUpdate> updateList = new ArrayList<ParamUpdate>();
+                        updateList.add(new ParamUpdate(msgParam.getKey(), msgParam.value, lastTime));
+                        parameterUpdates.put(msgParam.getKey(), updateList);
+                    }
+                } else {
+                    // add parameter to the parameters Map
+                    parameters.put(msgParam.getKey(), msgParam.value);
+                }
 
             } else if (msg instanceof MessageInfo) {
                 MessageInfo msgInfo = (MessageInfo) msg;
@@ -118,6 +143,7 @@ public class ULogReader extends BinaryLogReader {
                     timeStart = msgData.timestamp;
                 }
                 if (timeEnd < msgData.timestamp) timeEnd = msgData.timestamp;
+                lastTime = msgData.timestamp;
                 int msgID = msgData.format.msgID;
                 if (maxMultiID.containsKey(msgID)) {
                     if (maxMultiID.get(msgID) < msgData.multiID) maxMultiID.put(msgID, msgData.multiID);
@@ -330,6 +356,7 @@ public class ULogReader extends BinaryLogReader {
         double last_p = 0;
         Map<String, PrintStream> ostream = new HashMap<String, PrintStream>();
         Map<String, Double> lastTimeStamp = new HashMap<String, Double>();
+        double min_dt = 1;
         while (true) {
 //            try {
 //                Object msg = reader.readMessage();
@@ -372,8 +399,13 @@ public class ULogReader extends BinaryLogReader {
                 // check gyro stream for dropouts
                 if (stream.startsWith("SENSOR_GYRO")) {
                     double dt = tsec - lastTimeStamp.get(stream);
-                    if (dt > .010) {
-                        System.out.println("gyro dropout length: " + dt);
+                    double rdt = Math.rint(1000*dt) / 1000;
+                    if ((dt > 0) && (rdt < min_dt)) {
+                        min_dt = rdt;
+                        System.out.println("rdt: " + rdt);
+                    }
+                    if (dt > (5 * min_dt)) {
+                        System.out.println("gyro dropout: " + lastTimeStamp.get(stream) + ", length: " + dt);
                     }
                     lastTimeStamp.put(stream, tsec);
                 }

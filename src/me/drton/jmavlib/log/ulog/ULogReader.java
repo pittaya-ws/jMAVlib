@@ -289,7 +289,7 @@ public class ULogReader extends BinaryLogReader {
                 errors.add(new FormatErrorException(pos, "Unknown message type: " + msgType));
                 continue;
             }
-            int sizeParsed = (int) (position() - pos - 2);
+            int sizeParsed = (int) (position() - pos - 3);
             if (sizeParsed != msgSize) {
                 errors.add(new FormatErrorException(pos, "Message size mismatch, parsed: " + sizeParsed + ", msg size: " + msgSize));
                 buffer.position(buffer.position() + msgSize - sizeParsed);

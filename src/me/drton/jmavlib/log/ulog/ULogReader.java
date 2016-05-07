@@ -183,13 +183,15 @@ public class ULogReader extends BinaryLogReader {
                         int maxInstance = maxMultiID.get(msgFormat.msgID);
                         for (int i = 0; i < msgFormat.fields.length; i++) {
                             FieldFormat fieldDescr = msgFormat.fields[i];
-                            for (int mid=0; mid<=maxInstance; mid++) {
-                                if (fieldDescr.isArray()) {
-                                    for (int j = 0; j < fieldDescr.size; j++) {
-                                        fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
+                            if (!fieldDescr.name.contains("padding")) {
+                                for (int mid = 0; mid <= maxInstance; mid++) {
+                                    if (fieldDescr.isArray()) {
+                                        for (int j = 0; j < fieldDescr.size; j++) {
+                                            fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
+                                        }
+                                    } else {
+                                        fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name, fieldDescr.type);
                                     }
-                                } else {
-                                    fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name, fieldDescr.type);
                                 }
                             }
                         }
@@ -390,27 +392,41 @@ public class ULogReader extends BinaryLogReader {
                 }
                 // keys in Map "update" are fieldnames beginning with the topic name e.g. SENSOR_GYRO_0.someField
                 // Create a printstream for each topic when it is first encountered
-                String stream = update.keySet().iterator().next().split("\\.")[0];
+                Set<String> keySet = update.keySet();
+                String stream = keySet.iterator().next().split("\\.")[0];
                 if (!ostream.containsKey(stream)) {
                     System.out.println("creating stream " + stream);
                     PrintStream newStream = new PrintStream(basePath + File.separator + stream + ".csv");
                     ostream.put(stream, newStream);
                     lastTimeStamp.put(stream, tsec);
-                    Iterator<String> keys = update.keySet().iterator();
+                    Iterator<String> keys = keySet.iterator();
                     newStream.print("timestamp");
                     while (keys.hasNext()) {
-                        newStream.print(',');
-                        newStream.print(keys.next());
+                        String fieldName = keys.next();
+                        if (!fieldName.contains("padding")) {
+                            newStream.print(',');
+                            newStream.print(fieldName);
+                        }
                     }
                     newStream.println();
                 }
                 // append this record to output stream
                 PrintStream curStream = ostream.get(stream);
+                // timestamp is always first entry in record
                 curStream.print(t);
-                for (Object field: update.values()) {
-                    curStream.print(',');
-                    curStream.print(field.toString());
+                // for each non-padding field, print value
+                Iterator<String> keys = keySet.iterator();
+                while (keys.hasNext()) {
+                    String fieldName = keys.next();
+                    if (!fieldName.contains("padding")) {
+                        curStream.print(',');
+                        curStream.print(update.get(fieldName));
+                    }
                 }
+//                for (Object field: update.values()) {
+//                    curStream.print(',');
+//                    curStream.print(field.toString());
+//                }
                 curStream.println();
                 // check gyro stream for dropouts
                 if (stream.startsWith("SENSOR_GYRO")) {

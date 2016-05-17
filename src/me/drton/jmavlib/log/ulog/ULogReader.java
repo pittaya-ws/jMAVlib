@@ -375,7 +375,7 @@ public class ULogReader extends BinaryLogReader {
             } else if (msgType == MESSAGE_TYPE_PARAMETER) {
                 msg = new MessageParameter(buffer);
             } else if (msgType == MESSAGE_TYPE_FORMAT) {
-                msg = new MessageFormat(buffer);
+                msg = new MessageFormat(buffer, msgSize - HDRLEN - 1);
             } else {
                 buffer.position(buffer.position() + msgSize);
                 errors.add(new FormatErrorException(pos, "Unknown message type: " + msgType));

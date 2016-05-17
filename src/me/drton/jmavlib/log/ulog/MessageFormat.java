@@ -2,7 +2,11 @@ package me.drton.jmavlib.log.ulog;
 
 import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 /**
  * User: ton Date: 03.06.13 Time: 14:35
@@ -21,11 +25,8 @@ public class MessageFormat {
         return p.length > 0 ? p[0] : "";
     }
 
-    public MessageFormat(ByteBuffer buffer) {
+    public MessageFormat(ByteBuffer buffer, int format_len) {
         msgID = buffer.get() & 0xFF;
-        int s1 = buffer.get() & 0xFF;
-        int s2 = buffer.get() & 0xFF;
-        int format_len = s1 + (256 * s2);
         String[] descr_str = getString(buffer, format_len).split(":");
         name = descr_str[0];
         if (descr_str.length > 1) {

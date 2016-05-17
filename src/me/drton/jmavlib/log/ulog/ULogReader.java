@@ -397,9 +397,11 @@ public class ULogReader extends BinaryLogReader {
             case MESSAGE_TYPE_ADD_LOGGED_MSG:
                 msg = new MessageAddLogged(buffer, msgSize);
                 break;
+            case MESSAGE_TYPE_DROPOUT:
+                msg = new MessageDropout(buffer);
+                break;
             case MESSAGE_TYPE_REMOVE_LOGGED_MSG:
             case MESSAGE_TYPE_SYNC:
-            case MESSAGE_TYPE_DROPOUT:
                 buffer.position(buffer.position() + msgSize); //skip this message
                 continue;
             default:

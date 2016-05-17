@@ -28,6 +28,7 @@ public class ULogReader extends BinaryLogReader {
     static final byte MESSAGE_TYPE_INFO = (byte) 'I';
     static final byte MESSAGE_TYPE_PARAMETER = (byte) 'P';
     static final int HDRLEN = 3;
+    static final int FILE_MAGIC_HEADER_LENGTH = 16;
 
     private String systemName = "PX4";
     private long dataStart = 0;
@@ -38,6 +39,7 @@ public class ULogReader extends BinaryLogReader {
     private long sizeMicroseconds = -1;
     private long startMicroseconds = -1;
     private long utcTimeReference = -1;
+    private long logStartTimestamp = -1;
     private Map<Integer, Integer> maxMultiID = new HashMap<Integer, Integer>();
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
@@ -126,6 +128,39 @@ public class ULogReader extends BinaryLogReader {
     }
 
     /**
+     * Read and parse the file header.
+     * 
+     * @throws IOException
+     * @throws FormatErrorException
+     */
+    private void readFileHeader() throws IOException, FormatErrorException {
+        fillBuffer(FILE_MAGIC_HEADER_LENGTH);
+        //magic + version
+        boolean error = false;
+        if ((buffer.get() & 0xFF) != 'U')
+            error = true;
+        if ((buffer.get() & 0xFF) != 'L')
+            error = true;
+        if ((buffer.get() & 0xFF) != 'o')
+            error = true;
+        if ((buffer.get() & 0xFF) != 'g')
+            error = true;
+        if ((buffer.get() & 0xFF) != 0x01)
+            error = true;
+        if ((buffer.get() & 0xFF) != 0x12)
+            error = true;
+        if ((buffer.get() & 0xFF) != 0x35)
+            error = true;
+        if ((buffer.get() & 0xFF) != 0x00 && !error) {
+            System.out.println("ULog: Different version than expected. Will try anyway");
+        }
+        if (error)
+            throw new FormatErrorException("ULog: Wrong file format");
+
+        logStartTimestamp = buffer.getLong();
+    }
+
+    /**
      * Read all necessary information from the file, including message formats,
      * seeking positions and log file information.
      * 
@@ -134,6 +169,7 @@ public class ULogReader extends BinaryLogReader {
      */
     private void updateStatistics() throws IOException, FormatErrorException {
         position(0);
+        readFileHeader();
         long packetsNum = 0;
         long timeStart = -1;
         long timeEnd = -1;
@@ -204,7 +240,7 @@ public class ULogReader extends BinaryLogReader {
             }
         }
         // make a second pass filling the fieldsList now that we know how many multi-instances are in the log
-        position(0);
+        position(FILE_MAGIC_HEADER_LENGTH);
         while (true) {
             Object msg;
             try {

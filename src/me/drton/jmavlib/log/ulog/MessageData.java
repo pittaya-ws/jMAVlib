@@ -3,6 +3,8 @@ package me.drton.jmavlib.log.ulog;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import me.drton.jmavlib.log.FormatErrorException;
+
 /**
  * User: ton Date: 03.06.13 Time: 16:18
  */
@@ -13,13 +15,18 @@ public class MessageData {
     public final int multiID;
     public final boolean isActive;
 
-    public MessageData(MessageFormat format, ByteBuffer buffer) {
+    public MessageData(MessageFormat format, ByteBuffer buffer) throws FormatErrorException {
         this.format = format;
         int multiIDRaw = buffer.get() & 0xFF;
         this.multiID = multiIDRaw & 0x7F;
         this.isActive = (multiIDRaw & 0x80) != 0;
-        this.timestamp = buffer.getLong();
         this.data = format.parseBody(buffer);
+        Object t = get("timestamp");
+        if (t == null)
+            throw new FormatErrorException("Message " + format.name + " has no timestamp field");
+
+        //TODO: parse non-64bit timestamp (depending on field type) & handle wrap-arounds
+        timestamp = ((Number) t).longValue();
     }
 
     public Object get(int idx) {

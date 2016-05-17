@@ -1,11 +1,23 @@
 package me.drton.jmavlib.log.ulog;
 
+import java.io.EOFException;
+import java.io.File;
+import java.io.FileWriter;
+import java.io.IOException;
+import java.io.PrintStream;
+import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.Iterator;
+import java.util.List;
+import java.util.Map;
+import java.util.Set;
+import java.util.TreeMap;
+
+import javax.swing.JFileChooser;
+
 import me.drton.jmavlib.log.BinaryLogReader;
 import me.drton.jmavlib.log.FormatErrorException;
-
-import javax.swing.*;
-import java.io.*;
-import java.util.*;
 
 /**
  * User: ton Date: 03.06.13 Time: 14:18
@@ -55,6 +67,19 @@ public class ULogReader extends BinaryLogReader {
     }
     private List<Exception> errors = new ArrayList<Exception>();
 
+    /** Index for fast(er) seeking */
+    private ArrayList<SeekTime> seekTimes = null;
+
+    private class SeekTime {
+        public SeekTime(long t, long pos) {
+            timestamp = t;
+            position = pos;
+        }
+
+        public long timestamp;
+        public long position;
+    }
+
     public ULogReader(String fileName) throws IOException, FormatErrorException {
         super(fileName);
         parameterUpdates = new HashMap<String, List<ParamUpdate>>();
@@ -100,6 +125,13 @@ public class ULogReader extends BinaryLogReader {
         return parameters;
     }
 
+    /**
+     * Read all necessary information from the file, including message formats,
+     * seeking positions and log file information.
+     * 
+     * @throws IOException
+     * @throws FormatErrorException
+     */
     private void updateStatistics() throws IOException, FormatErrorException {
         position(0);
         long packetsNum = 0;
@@ -107,8 +139,10 @@ public class ULogReader extends BinaryLogReader {
         long timeEnd = -1;
         long lastTime = -1;
         fieldsList = new HashMap<String, String>();
+        seekTimes = new ArrayList<SeekTime>();
         while (true) {
             Object msg;
+            long pos = position();
             try {
                 msg = readMessage();
             } catch (EOFException e) {
@@ -151,9 +185,11 @@ public class ULogReader extends BinaryLogReader {
 
             } else if (msg instanceof MessageData) {
                 if (dataStart == 0) {
-                    dataStart = position();
+                    dataStart = pos;
                 }
                 MessageData msgData = (MessageData) msg;
+                seekTimes.add(new SeekTime(msgData.timestamp, pos));
+
                 if (timeStart < 0) {
                     timeStart = msgData.timestamp;
                 }
@@ -183,7 +219,7 @@ public class ULogReader extends BinaryLogReader {
                         int maxInstance = maxMultiID.get(msgFormat.msgID);
                         for (int i = 0; i < msgFormat.fields.length; i++) {
                             FieldFormat fieldDescr = msgFormat.fields[i];
-                            if (!fieldDescr.name.contains("padding")) {
+                            if (!fieldDescr.name.startsWith("_padding") && fieldDescr.name != "timestamp") {
                                 for (int mid = 0; mid <= maxInstance; mid++) {
                                     if (fieldDescr.isArray()) {
                                         for (int j = 0; j < fieldDescr.size; j++) {
@@ -216,40 +252,16 @@ public class ULogReader extends BinaryLogReader {
         if (seekTime == 0) {      // Seek to start of log
             return true;
         }
-        // Seek to specified timestamp without parsing all messages
-        try {
-            while (true) {
-                fillBuffer(HDRLEN);
-                long pos = position();
-                int msgType = buffer.get() & 0xFF;
-                int s1 = buffer.get() & 0xFF;
-                int s2 = buffer.get() & 0xFF;
-                int msgSize = s1 + (256 * s2);
-                fillBuffer(msgSize);
-                if (msgType == MESSAGE_TYPE_DATA) {
-                    int msgID = buffer.get() & 0xFF;
-                    buffer.get();   // MultiID
-                    long timestamp = buffer.getLong();
-                    if (timestamp >= seekTime) {
-                        // Time found
-                        position(pos);
-                        return true;
-                    }
-                    MessageFormat msgFormat = messageFormats.get(msgID);
-                    if (msgFormat == null) {
-                        position(pos);
-                        throw new FormatErrorException(pos, "Unknown DATA message ID: " + msgID);
-                    }
-                    // magic number 10 depends on HDRLEN ???
-                    buffer.position(buffer.position() + msgSize - 10);
-                } else {
-                    fillBuffer(msgSize);
-                    buffer.position(buffer.position() + msgSize);
-                }
+
+        //find the position in seekTime. We could speed this up further by
+        //using a binary search
+        for (SeekTime sk : seekTimes) {
+            if (sk.timestamp >= seekTime) {
+                position(sk.position);
+                return true;
             }
-        } catch (EOFException e) {
-            return false;
         }
+        return false;
     }
 
     private void applyMsg(Map<String, Object> update, MessageData msg) {
@@ -403,7 +415,7 @@ public class ULogReader extends BinaryLogReader {
                     newStream.print("timestamp");
                     while (keys.hasNext()) {
                         String fieldName = keys.next();
-                        if (!fieldName.contains("padding")) {
+                        if (!fieldName.startsWith("_padding") && fieldName != "timestamp") {
                             newStream.print(',');
                             newStream.print(fieldName);
                         }
@@ -418,7 +430,7 @@ public class ULogReader extends BinaryLogReader {
                 Iterator<String> keys = keySet.iterator();
                 while (keys.hasNext()) {
                     String fieldName = keys.next();
-                    if (!fieldName.contains("padding")) {
+                    if (!fieldName.startsWith("_padding") && fieldName != "timestamp") {
                         curStream.print(',');
                         curStream.print(update.get(fieldName));
                     }

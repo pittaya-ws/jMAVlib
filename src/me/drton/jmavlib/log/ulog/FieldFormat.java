@@ -8,7 +8,7 @@ import java.nio.ByteBuffer;
 class FieldFormat {
     public final String name;
     public final String type;
-    public final int size;
+    public final int size; //array length (-1 if not an array)
 
     public FieldFormat(String formatStr) {
         String[] p = formatStr.split(" ");

@@ -27,20 +27,35 @@ public class ULogReader extends BinaryLogReader {
     static final byte MESSAGE_TYPE_DATA = (byte) 'D';
     static final byte MESSAGE_TYPE_INFO = (byte) 'I';
     static final byte MESSAGE_TYPE_PARAMETER = (byte) 'P';
+    static final byte MESSAGE_TYPE_ADD_LOGGED_MSG = (byte) 'A';
+    static final byte MESSAGE_TYPE_REMOVE_LOGGED_MSG = (byte) 'R';
+    static final byte MESSAGE_TYPE_SYNC = (byte) 'S';
+    static final byte MESSAGE_TYPE_DROPOUT = (byte) 'O';
     static final int HDRLEN = 3;
     static final int FILE_MAGIC_HEADER_LENGTH = 16;
 
     private String systemName = "PX4";
     private long dataStart = 0;
-    private Map<Integer, MessageFormat> messageFormats
-            = new HashMap<Integer, MessageFormat>();
+    private Map<String, MessageFormat> messageFormats = new HashMap<String, MessageFormat>();
+
+    private class Subscription {
+        public Subscription(MessageFormat f, int multiID) {
+            this.format = f;
+            this.multiID = multiID;
+        }
+        public MessageFormat format;
+        public int multiID;
+    }
+
+    /** all subscriptions. Index is the message id */
+    private ArrayList<Subscription> messageSubscriptions = new ArrayList<Subscription>();
+
     private Map<String, String> fieldsList = null;
     private long sizeUpdates = -1;
     private long sizeMicroseconds = -1;
     private long startMicroseconds = -1;
     private long utcTimeReference = -1;
     private long logStartTimestamp = -1;
-    private Map<Integer, Integer> maxMultiID = new HashMap<Integer, Integer>();
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
 
@@ -188,7 +203,23 @@ public class ULogReader extends BinaryLogReader {
 
             if (msg instanceof MessageFormat) {
                 MessageFormat msgFormat = (MessageFormat) msg;
-                messageFormats.put(msgFormat.msgID, msgFormat);
+                messageFormats.put(msgFormat.name, msgFormat);
+
+            } else if (msg instanceof MessageAddLogged) {
+                MessageAddLogged msgAddLogged = (MessageAddLogged) msg;
+                MessageFormat msgFormat = messageFormats.get(msgAddLogged.name);
+                if(msgFormat == null)
+                    throw new FormatErrorException("Format of subscribed message not found: " + msgAddLogged.name);
+                Subscription subscription = new Subscription(msgFormat, msgAddLogged.multiID);
+                if (msgAddLogged.msgID < messageSubscriptions.size()) {
+                    messageSubscriptions.set(msgAddLogged.msgID, subscription);
+                } else {
+                    while (msgAddLogged.msgID > messageSubscriptions.size())
+                        messageSubscriptions.add(null);
+                    messageSubscriptions.add(subscription);
+                }
+                if (msgAddLogged.multiID > msgFormat.maxMultiID)
+                    msgFormat.maxMultiID = msgAddLogged.multiID;
 
             } else if (msg instanceof MessageParameter) {
                 MessageParameter msgParam = (MessageParameter) msg;
@@ -231,16 +262,11 @@ public class ULogReader extends BinaryLogReader {
                 }
                 if (timeEnd < msgData.timestamp) timeEnd = msgData.timestamp;
                 lastTime = msgData.timestamp;
-                int msgID = msgData.format.msgID;
-                if (maxMultiID.containsKey(msgID)) {
-                    if (maxMultiID.get(msgID) < msgData.multiID) maxMultiID.put(msgID, msgData.multiID);
-                } else {
-                    maxMultiID.put(msgID, msgData.multiID);
-                }
             }
         }
         // make a second pass filling the fieldsList now that we know how many multi-instances are in the log
         position(FILE_MAGIC_HEADER_LENGTH);
+
         while (true) {
             Object msg;
             try {
@@ -252,7 +278,7 @@ public class ULogReader extends BinaryLogReader {
                 MessageFormat msgFormat = (MessageFormat) msg;
                 if (msgFormat.name.charAt(0) != '_') {
                     try {
-                        int maxInstance = maxMultiID.get(msgFormat.msgID);
+                        int maxInstance = messageFormats.get(msgFormat.name).maxMultiID;
                         for (int i = 0; i < msgFormat.fields.length; i++) {
                             FieldFormat fieldDescr = msgFormat.fields[i];
                             if (!fieldDescr.name.startsWith("_padding") && fieldDescr.name != "timestamp") {
@@ -302,9 +328,6 @@ public class ULogReader extends BinaryLogReader {
 
     private void applyMsg(Map<String, Object> update, MessageData msg) {
         applyMsgAsName(update, msg, msg.format.name + "_" + msg.multiID);
-//        if (msg.isActive) {
-//            applyMsgAsName(update, msg, msg.format.name);
-//        }
     }
 
     void applyMsgAsName(Map<String, Object> update, MessageData msg, String msg_name) {
@@ -359,24 +382,40 @@ public class ULogReader extends BinaryLogReader {
                 throw e;
             }
             Object msg;
-            if (msgType == MESSAGE_TYPE_DATA) {
-                int msgID = buffer.get() & 0xFF;
-                MessageFormat msgFormat = messageFormats.get(msgID);
-                if (msgFormat == null) {
+            switch (msgType) {
+            case MESSAGE_TYPE_DATA:
+                s1 = buffer.get() & 0xFF;
+                s2 = buffer.get() & 0xFF;
+                int msgID = s1 + (256 * s2);
+                Subscription subscription = null;
+                if (msgID < messageSubscriptions.size())
+                    subscription = messageSubscriptions.get(msgID);
+                if (subscription == null) {
                     position(pos);
-                    errors.add(new FormatErrorException(pos, "Unknown DATA message ID: " + msgID));
+                    errors.add(new FormatErrorException(pos, "Unknown DATA subscription ID: " + msgID));
                     buffer.position(buffer.position() + msgSize - 1);
                     continue;
-                } else {
-                    msg = new MessageData(msgFormat, buffer);
                 }
-            } else if (msgType == MESSAGE_TYPE_INFO) {
+                msg = new MessageData(subscription.format, buffer, subscription.multiID);
+                break;
+            case MESSAGE_TYPE_INFO:
                 msg = new MessageInfo(buffer);
-            } else if (msgType == MESSAGE_TYPE_PARAMETER) {
+                break;
+            case MESSAGE_TYPE_PARAMETER:
                 msg = new MessageParameter(buffer);
-            } else if (msgType == MESSAGE_TYPE_FORMAT) {
-                msg = new MessageFormat(buffer, msgSize - HDRLEN - 1);
-            } else {
+                break;
+            case MESSAGE_TYPE_FORMAT:
+                msg = new MessageFormat(buffer, msgSize);
+                break;
+            case MESSAGE_TYPE_ADD_LOGGED_MSG:
+                msg = new MessageAddLogged(buffer, msgSize);
+                break;
+            case MESSAGE_TYPE_REMOVE_LOGGED_MSG:
+            case MESSAGE_TYPE_SYNC:
+            case MESSAGE_TYPE_DROPOUT:
+                buffer.position(buffer.position() + msgSize); //skip this message
+                continue;
+            default:
                 buffer.position(buffer.position() + msgSize);
                 errors.add(new FormatErrorException(pos, "Unknown message type: " + msgType));
                 continue;

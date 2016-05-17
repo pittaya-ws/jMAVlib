@@ -13,10 +13,12 @@ import java.util.Map;
  */
 public class MessageFormat {
     public static Charset charset = Charset.forName("latin1");
-    public final int msgID;
     public final String name;
     public final FieldFormat[] fields;
     public final Map<String, Integer> fieldsMap = new HashMap<String, Integer>();
+
+    /** max multi id of all logged messages with this format */
+    public int maxMultiID = 0;
 
     public static String getString(ByteBuffer buffer, int len) {
         byte[] strBuf = new byte[len];
@@ -25,9 +27,8 @@ public class MessageFormat {
         return p.length > 0 ? p[0] : "";
     }
 
-    public MessageFormat(ByteBuffer buffer, int format_len) {
-        msgID = buffer.get() & 0xFF;
-        String[] descr_str = getString(buffer, format_len).split(":");
+    public MessageFormat(ByteBuffer buffer, int formatLen) {
+        String[] descr_str = getString(buffer, formatLen).split(":");
         name = descr_str[0];
         if (descr_str.length > 1) {
             String[] fields_descrs_str = descr_str[1].split(";");
@@ -60,7 +61,6 @@ public class MessageFormat {
 
     @Override
     public String toString() {
-        return String.format("FORMAT: type=%s, name=%s, fields=%s",
-                msgID, name, Arrays.asList(fields));
+        return String.format("FORMAT: name=%s, fields=%s", name, Arrays.asList(fields));
     }
 }

@@ -348,10 +348,10 @@ public class ULogReader extends BinaryLogReader {
         while (true) {
             fillBuffer(HDRLEN);
             long pos = position();
-            int msgType = buffer.get() & 0xFF;
             int s1 = buffer.get() & 0xFF;
             int s2 = buffer.get() & 0xFF;
             int msgSize = s1 + (256 * s2);
+            int msgType = buffer.get() & 0xFF;
             try {
                 fillBuffer(msgSize);
             } catch (EOFException e) {

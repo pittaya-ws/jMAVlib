@@ -264,42 +264,29 @@ public class ULogReader extends BinaryLogReader {
                 lastTime = msgData.timestamp;
             }
         }
-        // make a second pass filling the fieldsList now that we know how many multi-instances are in the log
-        position(FILE_MAGIC_HEADER_LENGTH);
 
-        while (true) {
-            Object msg;
-            try {
-                msg = readMessage();
-            } catch (EOFException e) {
-                break;
-            }
-            if (msg instanceof MessageFormat) {
-                MessageFormat msgFormat = (MessageFormat) msg;
+        // fill the fieldsList now that we know how many multi-instances are in the log
+        for (int k = 0; k < messageSubscriptions.size(); ++k) {
+            Subscription s = messageSubscriptions.get(k);
+            if (s != null) {
+                MessageFormat msgFormat = s.format;
                 if (msgFormat.name.charAt(0) != '_') {
-                    try {
-                        int maxInstance = messageFormats.get(msgFormat.name).maxMultiID;
-                        for (int i = 0; i < msgFormat.fields.length; i++) {
-                            FieldFormat fieldDescr = msgFormat.fields[i];
-                            if (!fieldDescr.name.startsWith("_padding") && fieldDescr.name != "timestamp") {
-                                for (int mid = 0; mid <= maxInstance; mid++) {
-                                    if (fieldDescr.isArray()) {
-                                        for (int j = 0; j < fieldDescr.size; j++) {
-                                            fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
-                                        }
-                                    } else {
-                                        fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name, fieldDescr.type);
+                    int maxInstance = msgFormat.maxMultiID;
+                    for (int i = 0; i < msgFormat.fields.length; i++) {
+                        FieldFormat fieldDescr = msgFormat.fields[i];
+                        if (!fieldDescr.name.startsWith("_padding") && fieldDescr.name != "timestamp") {
+                            for (int mid = 0; mid <= maxInstance; mid++) {
+                                if (fieldDescr.isArray()) {
+                                    for (int j = 0; j < fieldDescr.size; j++) {
+                                        fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name + "[" + j + "]", fieldDescr.type);
                                     }
+                                } else {
+                                    fieldsList.put(msgFormat.name + "_" + mid + "." + fieldDescr.name, fieldDescr.type);
                                 }
                             }
                         }
-                    } catch (NullPointerException e) {
-                        continue;
                     }
                 }
-            }
-            if (msg instanceof MessageData) {
-                break;
             }
         }
         startMicroseconds = timeStart;

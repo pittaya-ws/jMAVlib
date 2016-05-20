@@ -56,6 +56,7 @@ public class ULogReader extends BinaryLogReader {
     private long startMicroseconds = -1;
     private long utcTimeReference = -1;
     private long logStartTimestamp = -1;
+    private boolean nestedParsingDone = false;
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
 
@@ -206,6 +207,14 @@ public class ULogReader extends BinaryLogReader {
                 messageFormats.put(msgFormat.name, msgFormat);
 
             } else if (msg instanceof MessageAddLogged) {
+                //from now on we cannot have any new MessageFormat's, so we
+                //can parse the nested types
+                if (!nestedParsingDone) {
+                    for (MessageFormat m : messageFormats.values()) {
+                        m.parseNestedTypes(messageFormats);
+                    }
+                    nestedParsingDone = true;
+                }
                 MessageAddLogged msgAddLogged = (MessageAddLogged) msg;
                 MessageFormat msgFormat = messageFormats.get(msgAddLogged.name);
                 if(msgFormat == null)
@@ -272,9 +281,9 @@ public class ULogReader extends BinaryLogReader {
                 MessageFormat msgFormat = s.format;
                 if (msgFormat.name.charAt(0) != '_') {
                     int maxInstance = msgFormat.maxMultiID;
-                    for (int i = 0; i < msgFormat.fields.length; i++) {
-                        FieldFormat fieldDescr = msgFormat.fields[i];
-                        if (!fieldDescr.name.startsWith("_padding") && fieldDescr.name != "timestamp") {
+                    for (int i = 0; i < msgFormat.fields.size(); i++) {
+                        FieldFormat fieldDescr = msgFormat.fields.get(i);
+                        if (!fieldDescr.name.contains("_padding") && fieldDescr.name != "timestamp") {
                             for (int mid = 0; mid <= maxInstance; mid++) {
                                 if (fieldDescr.isArray()) {
                                     for (int j = 0; j < fieldDescr.size; j++) {
@@ -318,9 +327,9 @@ public class ULogReader extends BinaryLogReader {
     }
 
     void applyMsgAsName(Map<String, Object> update, MessageData msg, String msg_name) {
-        FieldFormat[] fields = msg.format.fields;
-        for (int i = 0; i < fields.length; i++) {
-            FieldFormat field = fields[i];
+        final ArrayList<FieldFormat> fields = msg.format.fields;
+        for (int i = 0; i < fields.size(); i++) {
+            FieldFormat field = fields.get(i);
             if (field.isArray()) {
                 for (int j = 0; j < field.size; j++) {
                     update.put(msg_name + "." + field.name + "[" + j + "]", ((Object[]) msg.get(i))[j]);
@@ -479,7 +488,7 @@ public class ULogReader extends BinaryLogReader {
                     newStream.print("timestamp");
                     while (keys.hasNext()) {
                         String fieldName = keys.next();
-                        if (!fieldName.startsWith("_padding") && fieldName != "timestamp") {
+                        if (!fieldName.contains("_padding") && fieldName != "timestamp") {
                             newStream.print(',');
                             newStream.print(fieldName);
                         }
@@ -494,7 +503,7 @@ public class ULogReader extends BinaryLogReader {
                 Iterator<String> keys = keySet.iterator();
                 while (keys.hasNext()) {
                     String fieldName = keys.next();
-                    if (!fieldName.startsWith("_padding") && fieldName != "timestamp") {
+                    if (!fieldName.contains("_padding") && fieldName != "timestamp") {
                         curStream.print(',');
                         curStream.print(update.get(fieldName));
                     }

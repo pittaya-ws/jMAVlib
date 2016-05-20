@@ -24,6 +24,12 @@ class FieldFormat {
         }
     }
 
+    public FieldFormat(String name, String type, int size) {
+        this.name = name;
+        this.type = type;
+        this.size = size;
+    }
+
     public String getFullTypeString() {
         String size_str = (size >= 0) ? ("[" + size + "]") : "";
         return type + size_str;

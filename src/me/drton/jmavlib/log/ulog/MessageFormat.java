@@ -90,6 +90,14 @@ public class MessageFormat {
         return data;
     }
 
+    public void removeLastPaddingField() {
+        if (fields.size() > 0) {
+            if (fields.get(fields.size() - 1).name.startsWith("_padding")) {
+                fields.remove(fields.size() - 1);
+            }
+        }
+    }
+
     public List<String> getFields() {
         List<String> field_names = new ArrayList<String>(fields.size());
         for (FieldFormat field : fields) {

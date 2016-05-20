@@ -213,6 +213,10 @@ public class ULogReader extends BinaryLogReader {
                     for (MessageFormat m : messageFormats.values()) {
                         m.parseNestedTypes(messageFormats);
                     }
+                    //now do a 2. pass to remove the last padding field
+                    for (MessageFormat m : messageFormats.values()) {
+                        m.removeLastPaddingField();
+                    }
                     nestedParsingDone = true;
                 }
                 MessageAddLogged msgAddLogged = (MessageAddLogged) msg;

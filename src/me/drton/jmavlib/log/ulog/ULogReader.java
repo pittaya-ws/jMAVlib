@@ -31,6 +31,7 @@ public class ULogReader extends BinaryLogReader {
     static final byte MESSAGE_TYPE_REMOVE_LOGGED_MSG = (byte) 'R';
     static final byte MESSAGE_TYPE_SYNC = (byte) 'S';
     static final byte MESSAGE_TYPE_DROPOUT = (byte) 'O';
+    static final byte MESSAGE_TYPE_LOG = (byte) 'L';
     static final int HDRLEN = 3;
     static final int FILE_MAGIC_HEADER_LENGTH = 16;
 
@@ -59,6 +60,7 @@ public class ULogReader extends BinaryLogReader {
     private boolean nestedParsingDone = false;
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
+    private ArrayList<MessageLog> loggedMessages = new ArrayList<MessageLog>();
 
     public Map<String, List<ParamUpdate>> parameterUpdates;
     public class ParamUpdate {
@@ -275,6 +277,10 @@ public class ULogReader extends BinaryLogReader {
                 }
                 if (timeEnd < msgData.timestamp) timeEnd = msgData.timestamp;
                 lastTime = msgData.timestamp;
+            } else if (msg instanceof MessageLog) {
+                MessageLog msgLog = (MessageLog) msg;
+                loggedMessages.add(msgLog);
+                System.out.println("Log msg: " + msgLog.getLevelStr() + ": " + msgLog.message);
             }
         }
 
@@ -420,6 +426,9 @@ public class ULogReader extends BinaryLogReader {
                 break;
             case MESSAGE_TYPE_DROPOUT:
                 msg = new MessageDropout(buffer);
+                break;
+            case MESSAGE_TYPE_LOG:
+                msg = new MessageLog(buffer, msgSize);
                 break;
             case MESSAGE_TYPE_REMOVE_LOGGED_MSG:
             case MESSAGE_TYPE_SYNC:

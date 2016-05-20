@@ -302,6 +302,14 @@ public class ULogReader extends BinaryLogReader {
         sizeUpdates = packetsNum;
         sizeMicroseconds = timeEnd - timeStart;
         seek(0);
+
+        if (!errors.isEmpty()) {
+            System.err.println("Errors while reading file:");
+            for (final Exception e : errors) {
+                System.err.println(e.getMessage());
+            }
+            errors.clear();
+        }
     }
 
     @Override

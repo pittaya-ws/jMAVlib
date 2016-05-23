@@ -60,7 +60,7 @@ public class ULogReader extends BinaryLogReader {
     private boolean nestedParsingDone = false;
     private Map<String, Object> version = new HashMap<String, Object>();
     private Map<String, Object> parameters = new HashMap<String, Object>();
-    private ArrayList<MessageLog> loggedMessages = new ArrayList<MessageLog>();
+    public ArrayList<MessageLog> loggedMessages = new ArrayList<MessageLog>();
 
     public Map<String, List<ParamUpdate>> parameterUpdates;
     public class ParamUpdate {
@@ -280,7 +280,6 @@ public class ULogReader extends BinaryLogReader {
             } else if (msg instanceof MessageLog) {
                 MessageLog msgLog = (MessageLog) msg;
                 loggedMessages.add(msgLog);
-                System.out.println("Log msg: " + msgLog.getLevelStr() + ": " + msgLog.message);
             }
         }
 

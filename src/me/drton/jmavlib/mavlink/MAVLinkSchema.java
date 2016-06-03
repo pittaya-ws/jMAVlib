@@ -67,7 +67,7 @@ public class MAVLinkSchema {
                 Element fieldElem = (Element) fieldsElems.item(j);
                 String[] typeStr = fieldElem.getAttribute("type").split("\\[");
                 MAVLinkDataType fieldType = MAVLinkDataType.fromCType(typeStr[0]);
-                int arraySize = 1;
+                int arraySize = -1;
                 if (typeStr.length > 1) {
                     arraySize = Integer.parseInt(typeStr[1].split("\\]")[0]);
                 }
@@ -86,7 +86,9 @@ public class MAVLinkSchema {
                     return 0;
                 }
             });
-            addMessageDefinition(new MAVLinkMessageDefinition(msgID, msgName, fields));
+            if (msgID >= 0 && msgID < 256) {
+                addMessageDefinition(new MAVLinkMessageDefinition(msgID, msgName, fields));
+            }
         }
     }
 

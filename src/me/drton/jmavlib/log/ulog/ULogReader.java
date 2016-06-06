@@ -63,6 +63,7 @@ public class ULogReader extends BinaryLogReader {
     public ArrayList<MessageLog> loggedMessages = new ArrayList<MessageLog>();
 
     public Map<String, List<ParamUpdate>> parameterUpdates;
+    private boolean replayedLog = false;
     public class ParamUpdate {
         private String name;
         private Object value;
@@ -238,7 +239,8 @@ public class ULogReader extends BinaryLogReader {
 
             } else if (msg instanceof MessageParameter) {
                 MessageParameter msgParam = (MessageParameter) msg;
-                if (parameters.containsKey(msgParam.getKey())) {
+                // a replayed log can contain many parameter updates, so we ignore them here
+                if (parameters.containsKey(msgParam.getKey()) && !replayedLog) {
                     System.out.println("update to parameter: " + msgParam.getKey() + " value: " + msgParam.value + " at t = " + lastTime);
                     // maintain a record of parameters which change during flight
                     if (parameterUpdates.containsKey(msgParam.getKey())) {
@@ -263,6 +265,8 @@ public class ULogReader extends BinaryLogReader {
                     version.put("FW", msgInfo.value);
                 } else if ("time_ref_utc".equals(msgInfo.getKey())) {
                     utcTimeReference = ((long) ((Number) msgInfo.value).intValue()) * 1000 * 1000;
+                } else if ("replay".equals(msgInfo.getKey())) {
+                    replayedLog = true;
                 }
 
             } else if (msg instanceof MessageData) {

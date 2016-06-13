@@ -12,10 +12,11 @@ import java.util.*;
  * User: ton Date: 03.06.13 Time: 14:18
  */
 public class ULogReader extends BinaryLogReader {
-    static final byte MESSAGE_TYPE_FORMAT = (byte) 'F';
-    static final byte MESSAGE_TYPE_DATA = (byte) 'D';
-    static final byte MESSAGE_TYPE_INFO = (byte) 'I';
-    static final byte MESSAGE_TYPE_PARAMETER = (byte) 'P';
+    private static final byte SYNC_BYTE = (byte) '>';
+    private static final byte MESSAGE_TYPE_FORMAT = (byte) 'F';
+    private static final byte MESSAGE_TYPE_DATA = (byte) 'D';
+    private static final byte MESSAGE_TYPE_INFO = (byte) 'I';
+    private static final byte MESSAGE_TYPE_PARAMETER = (byte) 'P';
 
     private String systemName = "";
     private long dataStart = 0;
@@ -83,7 +84,7 @@ public class ULogReader extends BinaryLogReader {
         String logVersionStr = new String(logVersionBytes, Charset.forName("latin1"));
         if (logVersionStr.startsWith("ULG")) {
             logVersion = Integer.parseInt(logVersionStr.substring(3));
-            headerSize = 3;
+            headerSize = 4;
         } else {
             logVersion = 0;
             headerSize = 2;
@@ -162,6 +163,10 @@ public class ULogReader extends BinaryLogReader {
             while (true) {
                 fillBuffer(headerSize);
                 long pos = position();
+                byte sync = buffer.get();
+                if (sync != SYNC_BYTE) {
+                    continue;
+                }
                 int msgType = buffer.get() & 0xFF;
                 int msgSize;
                 if (logVersion == 0) {
@@ -171,18 +176,13 @@ public class ULogReader extends BinaryLogReader {
                 }
                 fillBuffer(msgSize);
                 if (msgType == MESSAGE_TYPE_DATA) {
-                    int msgID = buffer.get() & 0xFF;
+                    buffer.get();   // MsgID
                     buffer.get();   // MultiID
                     long timestamp = buffer.getLong();
                     if (timestamp >= seekTime) {
                         // Time found
                         position(pos);
                         return true;
-                    }
-                    MessageFormat msgFormat = messageFormats.get(msgID);
-                    if (msgFormat == null) {
-                        position(pos);
-                        throw new FormatErrorException(pos, "Unknown DATA message ID: " + msgID);
                     }
                     buffer.position(buffer.position() + msgSize - 10);
                 } else {
@@ -243,6 +243,11 @@ public class ULogReader extends BinaryLogReader {
         while (true) {
             fillBuffer(headerSize);
             long pos = position();
+            byte sync = buffer.get();
+            if (sync != SYNC_BYTE) {
+                errors.add(new FormatErrorException(pos, String.format("Wrong sync byte: 0x%02X (expected 0x%02X)", sync & 0xFF, SYNC_BYTE & 0xFF)));
+                continue;
+            }
             int msgType = buffer.get() & 0xFF;
             int msgSize;
             if (logVersion == 0) {

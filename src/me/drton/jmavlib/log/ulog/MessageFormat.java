@@ -21,9 +21,14 @@ public class MessageFormat {
         return p.length > 0 ? p[0] : "";
     }
 
-    public MessageFormat(ByteBuffer buffer) {
+    public MessageFormat(ByteBuffer buffer, int logVersion) {
         msgID = buffer.get() & 0xFF;
-        int format_len = buffer.get() & 0xFF;
+        int format_len;
+        if (logVersion == 0) {
+            format_len = buffer.get() & 0xFF;
+        } else {
+            format_len = buffer.getShort() & 0xFFFF;
+        }
         String[] descr_str = getString(buffer, format_len).split(":");
         name = descr_str[0];
         if (descr_str.length > 1) {

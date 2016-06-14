@@ -5,7 +5,6 @@ import me.drton.jmavlib.log.FormatErrorException;
 
 import java.io.EOFException;
 import java.io.IOException;
-import java.nio.BufferUnderflowException;
 import java.util.*;
 
 /**
@@ -185,7 +184,7 @@ public class PX4LogReader extends BinaryLogReader {
                             int fix = ((Number) msg.get("Status")).intValue();
                             int week = ((Number) msg.get("Week")).intValue();
                             long ms = ((Number) msg.get(tsName)).longValue();
-                            if (tsMicros)  {
+                            if (tsMicros) {
                                 ms = ms / 1000;
                             }
                             if (fix >= 3 && (week > 0 || ms > 0)) {
@@ -230,8 +229,8 @@ public class PX4LogReader extends BinaryLogReader {
                 try {
                     fillBuffer(bodyLen);
                 } catch (EOFException e) {
-                    //errors.add(new FormatErrorException(pos, "Unexpected end of file"));
-                    throw e;
+                    errors.add(new FormatErrorException(pos, "Unexpected end of file"));
+                    return false;
                 }
                 if (formatPX4) {
                     if ("TIME".equals(messageDescription.name)) {
@@ -253,7 +252,7 @@ public class PX4LogReader extends BinaryLogReader {
                         PX4LogMessage msg = messageDescription.parseMessage(buffer);
                         long t = msg.getLong(idx);
                         if (!tsMicros) {
-                            t *=1000;
+                            t *= 1000;
                         }
                         if (t > seekTime) {
                             // Time found
@@ -280,13 +279,11 @@ public class PX4LogReader extends BinaryLogReader {
                 // new format, timestamps in micros
                 tsMicros = true;
                 tsName = "TimeUS";
-            }
-            else if (null != msg.description.fieldsMap.get("TimeMS")){
+            } else if (null != msg.description.fieldsMap.get("TimeMS")) {
                 // old format, timestamps in millis
                 tsMicros = false;
                 tsName = "TimeMS";
-            }
-            else {
+            } else {
                 return 0;
             }
         }
@@ -302,9 +299,12 @@ public class PX4LogReader extends BinaryLogReader {
         String[] fields = msg.description.fields;
         for (int i = 0; i < fields.length; i++) {
             String field = fields[i];
-            if (i != 0 || !tsName.equals(field)) {
-                update.put(msg.description.name + "." + field, msg.get(i));
+            if (!formatPX4) {
+                if (i == 0 && tsName.equals(field)) {
+                    continue;   // Don't apply timestamp field
+                }
             }
+            update.put(msg.description.name + "." + field, msg.get(i));
         }
     }
 
@@ -384,7 +384,7 @@ public class PX4LogReader extends BinaryLogReader {
                             for (int i = 0; i < msgDescr.fields.length; i++) {
                                 String field = msgDescr.fields[i];
                                 String format = formatNames.get(Character.toString(msgDescr.format.charAt(i)));
-                                if (i != 0 || !("TimeMS".equals(field)||"TimeUS".equals(field))) {
+                                if (i != 0 || !("TimeMS".equals(field) || "TimeUS".equals(field))) {
                                     fieldsList.put(msgDescr.name + "." + field, format);
                                 }
                             }
@@ -452,7 +452,7 @@ public class PX4LogReader extends BinaryLogReader {
             try {
                 fillBuffer(messageDescription.length - HEADER_LEN);
             } catch (EOFException e) {
-                //errors.add(new FormatErrorException(pos, "Unexpected end of file"));
+                errors.add(new FormatErrorException(pos, "Unexpected end of file"));
                 throw e;
             }
             return messageDescription.parseMessage(buffer);

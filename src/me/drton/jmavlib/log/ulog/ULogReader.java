@@ -163,9 +163,11 @@ public class ULogReader extends BinaryLogReader {
             while (true) {
                 fillBuffer(headerSize);
                 long pos = position();
-                byte sync = buffer.get();
-                if (sync != SYNC_BYTE) {
-                    continue;
+                if (logVersion > 0) {
+                    byte sync = buffer.get();
+                    if (sync != SYNC_BYTE) {
+                        continue;
+                    }
                 }
                 int msgType = buffer.get() & 0xFF;
                 int msgSize;
@@ -243,10 +245,12 @@ public class ULogReader extends BinaryLogReader {
         while (true) {
             fillBuffer(headerSize);
             long pos = position();
-            byte sync = buffer.get();
-            if (sync != SYNC_BYTE) {
-                errors.add(new FormatErrorException(pos, String.format("Wrong sync byte: 0x%02X (expected 0x%02X)", sync & 0xFF, SYNC_BYTE & 0xFF)));
-                continue;
+            if (logVersion > 0) {
+                byte sync = buffer.get();
+                if (sync != SYNC_BYTE) {
+                    errors.add(new FormatErrorException(pos, String.format("Wrong sync byte: 0x%02X (expected 0x%02X)", sync & 0xFF, SYNC_BYTE & 0xFF)));
+                    continue;
+                }
             }
             int msgType = buffer.get() & 0xFF;
             int msgSize;

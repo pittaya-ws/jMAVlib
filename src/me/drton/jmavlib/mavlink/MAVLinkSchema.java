@@ -20,7 +20,6 @@ import java.util.Map;
  * User: ton Date: 03.06.14 Time: 12:31
  */
 public class MAVLinkSchema {
-    private byte startSign = (byte) 0xFE;
     private ByteOrder byteOrder = ByteOrder.LITTLE_ENDIAN;
     private final MAVLinkMessageDefinition[] definitions = new MAVLinkMessageDefinition[256];
     private final Map<String, MAVLinkMessageDefinition> definitionsByName
@@ -29,10 +28,6 @@ public class MAVLinkSchema {
 
     public MAVLinkSchema(String xmlFileName) throws ParserConfigurationException, IOException, SAXException {
         processXMLFile(xmlFileName);
-    }
-
-    public byte getStartSign() {
-        return startSign;
     }
 
     public ByteOrder getByteOrder() {

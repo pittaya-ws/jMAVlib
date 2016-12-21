@@ -78,6 +78,7 @@ public class MAVLinkSchema {
                         MAVLinkField field = new MAVLinkField(fieldType, arraySize, fieldElem.getAttribute("name"));
                         fields.add(field);
                     } else if (name == "extensions") {
+                        // remember where the special <extensions/> tag is defined in the list of fields.
                         extensionIndex = fields.size();
                     }
                 }

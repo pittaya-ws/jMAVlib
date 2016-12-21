@@ -1,4 +1,4 @@
-﻿package me.drton.jmavlib.mavlink;
+package me.drton.jmavlib.mavlink;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -86,6 +86,7 @@ public class MAVLinkSchema {
                 extensionIndex = fields.size();
             }
             int numFields = fields.size();
+            
             // as per mavparse.py: when we have extensions we only sort up to the first extended field
             List<MAVLinkField> sortedFields = fields.subList(0, extensionIndex);
             Collections.sort(sortedFields, new Comparator<MAVLinkField>() {
@@ -100,6 +101,8 @@ public class MAVLinkSchema {
                     return 0;
                 }
             });
+            
+            // add the rest of the fields after the extension index.
             for (int k = extensionIndex; k < numFields; k++) {
                 sortedFields.add(fields.get(k));
             }

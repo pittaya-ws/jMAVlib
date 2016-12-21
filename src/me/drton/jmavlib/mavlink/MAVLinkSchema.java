@@ -1,4 +1,4 @@
-package me.drton.jmavlib.mavlink;
+﻿package me.drton.jmavlib.mavlink;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;
@@ -17,6 +17,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -87,7 +88,7 @@ public class MAVLinkSchema {
             int numFields = fields.size();
             // as per mavparse.py: when we have extensions we only sort up to the first extended field
             List<MAVLinkField> sortedFields = fields.subList(0, extensionIndex);
-            sortedFields.sort(new Comparator<MAVLinkField>() {
+            Collections.sort(sortedFields, new Comparator<MAVLinkField>() {
                 @Override
                 public int compare(MAVLinkField field2, MAVLinkField field1) {
                     // Sort on type size

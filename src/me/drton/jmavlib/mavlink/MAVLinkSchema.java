@@ -1,4 +1,4 @@
-﻿package me.drton.jmavlib.mavlink;
+package me.drton.jmavlib.mavlink;
 
 import org.w3c.dom.Document;
 import org.w3c.dom.Element;

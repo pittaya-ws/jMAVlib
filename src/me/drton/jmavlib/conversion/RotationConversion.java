@@ -32,12 +32,12 @@ public class RotationConversion {
     }
 
     public static Float[] quaternionByEulerAngles(Vector3d euler) {
-        double cosPhi_2 = Math.cos(euler.getX() / 2.0);
-        double cosTheta_2 = Math.cos(euler.getY() / 2.0);
-        double cosPsi_2 = Math.cos(euler.getZ() / 2.0);
-        double sinPhi_2 = Math.sin(euler.getX() / 2.0);
-        double sinTheta_2 = Math.sin(euler.getY() / 2.0);
-        double sinPsi_2 = Math.sin(euler.getZ() / 2.0);
+        double cosPhi_2 = Math.cos(euler.x / 2.0);
+        double cosTheta_2 = Math.cos(euler.y / 2.0);
+        double cosPsi_2 = Math.cos(euler.z / 2.0);
+        double sinPhi_2 = Math.sin(euler.x / 2.0);
+        double sinTheta_2 = Math.sin(euler.y / 2.0);
+        double sinPsi_2 = Math.sin(euler.z / 2.0);
         return new Float[]{
                 (float)(cosPhi_2 * cosTheta_2 * cosPsi_2 +
                         sinPhi_2 * sinTheta_2 * sinPsi_2),

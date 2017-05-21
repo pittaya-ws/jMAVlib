@@ -10,7 +10,9 @@ import javax.xml.parsers.DocumentBuilder;
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.ParserConfigurationException;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.nio.ByteOrder;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -29,19 +31,25 @@ public class MAVLinkSchema {
     private final Map<String, MAVLinkMessageDefinition> definitionsByName
             = new HashMap<String, MAVLinkMessageDefinition>();
     private DocumentBuilder xmlBuilder = DocumentBuilderFactory.newInstance().newDocumentBuilder();
+    private File xmlFile = null;
 
     public MAVLinkSchema(String xmlFileName) throws ParserConfigurationException, IOException, SAXException {
-        processXMLFile(xmlFileName);
+        xmlFile = new File(xmlFileName);
+        FileInputStream fi = new FileInputStream(xmlFile);
+        processXMLFile(fi);
+    }
+
+    public MAVLinkSchema(InputStream xmlStream) throws ParserConfigurationException, IOException, SAXException {
+        processXMLFile(xmlStream);
     }
 
     public ByteOrder getByteOrder() {
         return byteOrder;
     }
 
-    private void processXMLFile(String xmlFileName) throws IOException, SAXException, ParserConfigurationException {
-        File xmlFile = new File(xmlFileName);
+    private void processXMLFile(InputStream xmlStream) throws IOException, SAXException, ParserConfigurationException {
         xmlBuilder.reset();
-        Document doc = xmlBuilder.parse(xmlFile);
+        Document doc = xmlBuilder.parse(xmlStream);
         doc.getDocumentElement().normalize();
         Element root = doc.getDocumentElement();
         if (!root.getNodeName().equals("mavlink")) {
@@ -52,7 +60,12 @@ public class MAVLinkSchema {
         NodeList includeElems = root.getElementsByTagName("include");
         for (int i = 0; i < includeElems.getLength(); i++) {
             String includeFile = includeElems.item(i).getTextContent();
-            processXMLFile(new File(xmlFile.getParentFile(), includeFile).getPath());
+
+            if (xmlFile != null) {
+                processXMLFile(new FileInputStream(new File(xmlFile.getParentFile(), includeFile).getPath()));
+            } else {
+                processXMLFile(MAVLinkSchema.class.getClassLoader().getResourceAsStream(includeFile));
+            }
         }
 
         NodeList msgElems = ((Element) root.getElementsByTagName("messages").item(0)).getElementsByTagName("message");

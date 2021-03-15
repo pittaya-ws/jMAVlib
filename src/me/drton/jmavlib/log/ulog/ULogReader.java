@@ -21,6 +21,7 @@ public class ULogReader extends BinaryLogReader {
     static final byte MESSAGE_TYPE_INFO = (byte) 'I';
     static final byte MESSAGE_TYPE_INFO_MULTIPLE = (byte) 'M';
     static final byte MESSAGE_TYPE_PARAMETER = (byte) 'P';
+    static final byte MESSAGE_TYPE_PARAMETER_DEFAULT = (byte) 'Q';
     static final byte MESSAGE_TYPE_ADD_LOGGED_MSG = (byte) 'A';
     static final byte MESSAGE_TYPE_REMOVE_LOGGED_MSG = (byte) 'R';
     static final byte MESSAGE_TYPE_SYNC = (byte) 'S';
@@ -516,6 +517,7 @@ public class ULogReader extends BinaryLogReader {
                     break;
                 case MESSAGE_TYPE_REMOVE_LOGGED_MSG:
                 case MESSAGE_TYPE_SYNC:
+                case MESSAGE_TYPE_PARAMETER_DEFAULT:
                     buffer.position(buffer.position() + msgSize); //skip this message
                     continue;
                 default:

@@ -21,7 +21,7 @@ public class MAVLinkMessage {
     public final int msgID;
     private final byte[] payload;
     private final ByteBuffer payloadBB;
-    private byte sequence = 0;
+    public byte sequence = 0;
     private byte compatFlags = 0; // mavlink 2 only
     private byte incompatFlags = 0; // mavlink 2 only
     public final int systemID;
@@ -30,6 +30,7 @@ public class MAVLinkMessage {
     private Charset charset = Charset.forName("latin1");
     public int protocolVersion = 1;
     private boolean signingEnabled = false; // not fully supported, this is only for msg length
+    public boolean forwarded = false; // message is forwarded and we should not change the sequence number
 
     /**
      * Create empty message by message ID (for filling and sending)
@@ -163,8 +164,7 @@ public class MAVLinkMessage {
         }
     }
 
-    public ByteBuffer encode(byte sequence) {
-        this.sequence = sequence;
+    public ByteBuffer encode() {
         ByteBuffer buf = ByteBuffer.allocate(payload.length + getNonPayloadLength());
         buf.order(schema.getByteOrder());
         if (protocolVersion == 2) {
@@ -177,7 +177,7 @@ public class MAVLinkMessage {
             buf.put((byte) 0); // incompatFlags
             buf.put((byte) 0); // compatFlags
         }
-        buf.put(sequence);
+        buf.put(this.sequence);
         buf.put((byte) systemID);
         buf.put((byte) componentID);
         if (protocolVersion == 2) {

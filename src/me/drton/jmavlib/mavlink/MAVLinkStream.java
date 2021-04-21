@@ -33,7 +33,10 @@ public class MAVLinkStream {
      * @throws IOException on IO error
      */
     public void write(MAVLinkMessage msg) throws IOException {
-        channel.write(msg.encode(txSeq++));
+        if (!msg.forwarded) {
+            msg.sequence = txSeq++;
+        }
+        channel.write(msg.encode());
     }
 
     /**
